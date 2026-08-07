@@ -109,7 +109,15 @@ struct SettingsView: View {
             settings.configURL = value
             sites = loaded
             settings.savedSites = loaded
-            message = loaded.isEmpty ? "配置中没有可用站点" : "已导入 \(loaded.count) 个接口（XML、JSON、Spider、规则接口），请点击一个启用"
+            if settings.selectedSite.map({ selected in loaded.contains(where: { $0.id == selected.id }) }) != true,
+               let nativeSite = loaded.first(where: \.canRunNatively) ?? loaded.first {
+                settings.selectedSite = nativeSite
+                if nativeSite.type == 0 || nativeSite.type == 1 {
+                    apiDraft = nativeSite.api
+                    settings.vodAPI = nativeSite.api
+                }
+            }
+            message = loaded.isEmpty ? "配置中没有可用站点" : "已导入 \(loaded.count) 个点播接口；已排除设置中心等非影视功能入口"
         } catch {
             message = "配置导入失败：\(error.localizedDescription)"
         }
