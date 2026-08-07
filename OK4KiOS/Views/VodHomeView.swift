@@ -1,50 +1,94 @@
 import SwiftUI
 
 struct VodHomeView: View {
+    @ObservedObject private var settings = AppSettings.shared
     @State private var items: [Vod] = []
+    @State private var types: [VodClass] = []
+    @State private var selectedType: String?
     @State private var keyword = ""
+    @State private var page = 1
+    @State private var hasMore = true
     @State private var isLoading = false
     @State private var errorMessage: String?
+
     private var service: VodService {
-        VodService(baseURL: AppSettings.shared.vodAPIURL ?? VodService.defaultBaseURL)
+        VodService(baseURL: settings.vodAPIURL ?? VodService.defaultBaseURL)
     }
 
     var body: some View {
-        List(items) { vod in
-            NavigationLink(destination: VodDetailView(vod: vod, service: service)) {
-                HStack(spacing: 12) {
-                    AsyncImage(url: vod.imageURL) { image in
-                        image.resizable().scaledToFill()
-                    } placeholder: { Color.gray.opacity(0.25) }
-                    .frame(width: 72, height: 100)
-                    .clipped()
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(vod.name).font(.headline)
-                        Text(vod.remark).font(.subheadline).foregroundColor(.secondary)
+        List {
+            if !types.isEmpty && keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Picker("分类", selection: $selectedType) {
+                    Text("全部").tag(String?.none)
+                    ForEach(types) { type in Text(type.name).tag(Optional(type.id)) }
+                }
+                .pickerStyle(.menu)
+                .onChange(of: selectedType) { _ in Task { await reload() } }
+            }
+            ForEach(items) { vod in
+                NavigationLink(destination: VodDetailView(vod: vod, service: service)) {
+                    HStack(spacing: 12) {
+                        AsyncImage(url: vod.imageURL) { image in
+                            image.resizable().scaledToFill()
+                        } placeholder: { Color.gray.opacity(0.25) }
+                        .frame(width: 72, height: 100)
+                        .clipped()
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(vod.name).font(.headline)
+                            Text(vod.remark).font(.subheadline).foregroundColor(.secondary)
+                        }
                     }
                 }
+            }
+            if hasMore && !items.isEmpty {
+                Button(isLoading ? "加载中…" : "加载更多") { Task { await loadNextPage() } }
+                    .disabled(isLoading)
+                    .frame(maxWidth: .infinity)
             }
         }
         .navigationTitle("点播")
         .searchable(text: $keyword, prompt: "搜索影片")
-        .onSubmit(of: .search) { Task { await load() } }
-        .overlay { if isLoading { ProgressView() } }
+        .onSubmit(of: .search) { Task { await reload() } }
+        .overlay { if isLoading && items.isEmpty { ProgressView() } }
         .alert("加载失败", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
             Button("确定", role: .cancel) { errorMessage = nil }
         } message: { Text(errorMessage ?? "") }
-        .task { await load() }
+        .task { if items.isEmpty { await reload() } }
     }
 
-    private func load() async {
+    private func reload() async {
+        page = 1
+        hasMore = true
+        items = []
+        await load(append: false)
+    }
+
+    private func loadNextPage() async {
+        guard hasMore else { return }
+        page += 1
+        await load(append: true)
+    }
+
+    private func load(append: Bool) async {
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
         do {
-            let result = keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                ? try await service.home()
-                : try await service.search(keyword)
-            items = result.list
+            let cleanKeyword = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+            let result: VodResult
+            if !cleanKeyword.isEmpty {
+                result = try await service.search(cleanKeyword, page: page)
+            } else if let selectedType {
+                result = try await service.category(id: selectedType, page: page)
+            } else {
+                result = try await service.home(page: page)
+            }
+            if types.isEmpty { types = result.types }
+            items = append ? items + result.list : result.list
+            let pageCount = result.pagecount?.value ?? page
+            hasMore = !result.list.isEmpty && page < pageCount
         } catch {
+            if append { page = max(1, page - 1) }
             errorMessage = error.localizedDescription
         }
     }
@@ -56,13 +100,13 @@ struct VodDetailView: View {
     @ObservedObject private var library = LibraryStore.shared
     @State private var detail: Vod
     @State private var loadError: String?
+    @State private var selectedFlag = 0
 
     init(vod: Vod, service: VodServiceProtocol? = nil) {
         self.vod = vod
         self.service = service ?? VodService(baseURL: AppSettings.shared.vodAPIURL ?? VodService.defaultBaseURL)
         _detail = State(initialValue: vod)
     }
-    @State private var selectedFlag = 0
 
     var body: some View {
         ScrollView {

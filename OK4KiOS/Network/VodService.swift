@@ -6,6 +6,7 @@ import FoundationNetworking
 protocol VodServiceProtocol {
     func home(page: Int) async throws -> VodResult
     func search(_ keyword: String, page: Int) async throws -> VodResult
+    func category(id: String, page: Int) async throws -> VodResult
     func detail(id: String) async throws -> Vod
 }
 
@@ -28,6 +29,14 @@ struct VodService: VodServiceProtocol {
         try await request([
             URLQueryItem(name: "ac", value: "detail"),
             URLQueryItem(name: "wd", value: keyword),
+            URLQueryItem(name: "pg", value: String(page))
+        ])
+    }
+
+    func category(id: String, page: Int = 1) async throws -> VodResult {
+        try await request([
+            URLQueryItem(name: "ac", value: "detail"),
+            URLQueryItem(name: "t", value: id),
             URLQueryItem(name: "pg", value: String(page))
         ])
     }
