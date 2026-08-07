@@ -35,4 +35,6 @@ GitHub Actions 会生成 `OK4KiOS-TrollStore-unsigned.ipa` artifact。
 
 播放器提供系统 AVPlayer 与 KSPlayer/FFmpeg 双引擎切换。默认 AVPlayer 保持系统硬件解码和最低功耗；遇到 MP2、AC3、E-AC3、DTS/DTS-HD 等系统不支持的音轨时，可在播放页右上角切换 FFmpeg 引擎，KSPlayer 会继续使用 VideoToolbox 硬件视频解码并由 FFmpeg 处理音频。
 
+已内置仅监听 `127.0.0.1:9978...9998` 的 Swift HTTP 代理，支持 Header、Range、HTTP 状态透传及 HLS 播放列表相对地址重写，用于需要 Cookie/Referer 的分片媒体。
+
 TVBox type 3 已加入 iOS 原生 Spider 兼容层：带 `site`、`host` 或 `url` 扩展网址的规则由 SwiftSoup 网络内核直接执行首页、分类、搜索、详情和播放解析；其余加密 JAR/Guard 规则可配置 Spider Gateway，通过统一的 home/category/detail/search/player JSON 协议执行。配置导入会保留 type 0/1 和 type 3 站点，不再丢弃 Spider 线路。

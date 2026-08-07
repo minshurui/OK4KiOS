@@ -11,11 +11,14 @@ struct PlayerView: View {
 
     init(urlString: String, headers: [String: String] = [:], vod: Vod? = nil, episodeName: String? = nil) {
         let request = PlaybackRequest.parse(urlString, additionalHeaders: headers)
-        self.urlString = request.urlString
-        self.headers = request.headers
+        let remoteURL = URL(string: request.urlString)
+        let needsProxy = !request.headers.isEmpty && remoteURL?.pathExtension.lowercased() == "m3u8"
+        let effectiveURL = needsProxy ? (remoteURL.flatMap { LocalProxyServer.shared.url(for: $0, headers: request.headers) }?.absoluteString ?? request.urlString) : request.urlString
+        self.urlString = effectiveURL
+        self.headers = needsProxy ? [:] : request.headers
         self.vod = vod
         self.episodeName = episodeName
-        _model = StateObject(wrappedValue: PlayerViewModel(urlString: request.urlString, headers: request.headers, vod: vod, episodeName: episodeName))
+        _model = StateObject(wrappedValue: PlayerViewModel(urlString: effectiveURL, headers: needsProxy ? [:] : request.headers, vod: vod, episodeName: episodeName))
         _useFFmpeg = State(initialValue: AppSettings.shared.preferFFmpeg)
     }
 

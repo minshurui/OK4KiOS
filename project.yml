@@ -19,6 +19,9 @@ packages:
   SwiftSoup:
     url: https://github.com/scinfu/SwiftSoup.git
     exactVersion: 2.7.6
+  Swifter:
+    url: https://github.com/httpswift/swifter.git
+    exactVersion: 1.5.0
 targets:
   OK4KiOS:
     type: application
@@ -29,6 +32,7 @@ targets:
     dependencies:
       - package: KSPlayer
       - package: SwiftSoup
+      - package: Swifter
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.fongmi.ok4k.ios
