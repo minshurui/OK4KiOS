@@ -5,6 +5,8 @@ struct VodHomeView: View {
     @State private var items: [Vod] = []
     @State private var types: [VodClass] = []
     @State private var selectedType: String?
+    @State private var filters: [VodFilter] = []
+    @State private var activeFilterValues: [String: String] = [:]
     @State private var keyword = ""
     @State private var page = 1
     @State private var hasMore = true
@@ -50,6 +52,25 @@ struct VodHomeView: View {
                         }
                         .padding(.horizontal)
                     }
+                }
+
+                if !filters.isEmpty, selectedType != nil, keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(filters) { filter in
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(filter.name).font(.caption).foregroundColor(.secondary)
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 8) {
+                                        filterOptionButton("全部", filter: filter, value: nil)
+                                        ForEach(filter.value) { option in
+                                            filterOptionButton(option.n, filter: filter, value: option.v)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
                 }
 
                 if items.isEmpty && !isLoading {
@@ -121,10 +142,26 @@ struct VodHomeView: View {
     private func typeButton(_ title: String, id: String?) -> some View {
         Button(title) {
             selectedType = id
+            filters = []
+            activeFilterValues = [:]
             Task { await reload() }
         }
         .buttonStyle(.bordered)
         .tint(selectedType == id ? OKTheme.accent : .secondary)
+    }
+
+    private func filterOptionButton(_ title: String, filter: VodFilter, value: String?) -> some View {
+        let isActive = value == nil ? (activeFilterValues[filter.key]?.isEmpty ?? true) : (activeFilterValues[filter.key] == value)
+        return Button(title) {
+            if let value {
+                activeFilterValues[filter.key] = value
+            } else {
+                activeFilterValues[filter.key] = ""
+            }
+            Task { await reload() }
+        }
+        .buttonStyle(.bordered)
+        .tint(isActive ? OKTheme.accent : .secondary)
     }
 
     private func reload() async {
@@ -150,11 +187,18 @@ struct VodHomeView: View {
             if !cleanKeyword.isEmpty {
                 result = try await service.search(cleanKeyword, page: page)
             } else if let selectedType {
-                result = try await service.category(id: selectedType, page: page)
+                result = try await service.category(id: selectedType, page: page, filters: activeFilterValues)
             } else {
                 result = try await service.home(page: page)
             }
             if types.isEmpty { types = result.types }
+            if let selectedType {
+                if let typeFilters = result.filters?[selectedType], !typeFilters.isEmpty {
+                    filters = typeFilters
+                } else if let type = types.first(where: { $0.id == selectedType }), let typeFilters = type.filters, !typeFilters.isEmpty {
+                    filters = typeFilters
+                }
+            }
             items = append ? items + result.list : result.list
             let pageCount = result.pagecount?.value ?? page
             hasMore = !result.list.isEmpty && page < pageCount

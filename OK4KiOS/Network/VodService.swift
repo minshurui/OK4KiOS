@@ -9,6 +9,14 @@ protocol VodServiceProtocol {
     func category(id: String, page: Int) async throws -> VodResult
     func detail(id: String) async throws -> Vod
     func player(flag: String, id: String) async throws -> SpiderPlayback
+    func types() async throws -> [VodClass]
+}
+
+extension VodServiceProtocol {
+    func category(id: String, page: Int, filters: [String: String]) async throws -> VodResult {
+        try await category(id: id, page: page)
+    }
+    func types() async throws -> [VodClass] { [] }
 }
 
 struct VodService: VodServiceProtocol {
@@ -23,7 +31,11 @@ struct VodService: VodServiceProtocol {
     }
 
     func home(page: Int = 1) async throws -> VodResult {
-        try await request([URLQueryItem(name: "ac", value: "detail"), URLQueryItem(name: "pg", value: String(page))])
+        try await request([
+            URLQueryItem(name: "ac", value: "detail"),
+            URLQueryItem(name: "filter", value: "true"),
+            URLQueryItem(name: "pg", value: String(page))
+        ])
     }
 
     func search(_ keyword: String, page: Int = 1) async throws -> VodResult {
@@ -35,17 +47,31 @@ struct VodService: VodServiceProtocol {
     }
 
     func category(id: String, page: Int = 1) async throws -> VodResult {
-        try await request([
+        try await category(id: id, page: page, filters: [:])
+    }
+
+    func category(id: String, page: Int = 1, filters: [String: String]) async throws -> VodResult {
+        var items = [
             URLQueryItem(name: "ac", value: "detail"),
             URLQueryItem(name: "t", value: id),
+            URLQueryItem(name: "filter", value: "true"),
             URLQueryItem(name: "pg", value: String(page))
-        ])
+        ]
+        for (key, value) in filters where !value.isEmpty {
+            items.append(URLQueryItem(name: key, value: value))
+        }
+        return try await request(items)
     }
 
     func detail(id: String) async throws -> Vod {
         let result = try await request([URLQueryItem(name: "ac", value: "detail"), URLQueryItem(name: "ids", value: id)])
         guard let vod = result.list.first else { throw VodServiceError.emptyDetail }
         return vod
+    }
+
+    func types() async throws -> [VodClass] {
+        let result = try await request([URLQueryItem(name: "ac", value: "list"), URLQueryItem(name: "t", value: "")])
+        return result.types
     }
 
     func player(flag: String, id: String) async throws -> SpiderPlayback {

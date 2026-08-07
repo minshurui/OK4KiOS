@@ -9,6 +9,8 @@ struct SettingsView: View {
     @State private var isLoading = false
     @State private var message: String?
     @State private var showingFeatureCenter = false
+    @State private var showingAddSite = false
+    @State private var editSite: TVBoxSite?
 
     var body: some View {
         Form {
@@ -47,7 +49,30 @@ struct SettingsView: View {
                                 .font(.caption).foregroundColor(.secondary).lineLimit(1)
                         }
                     }
+                    .contextMenu {
+                        Button("编辑") { editSite = site }
+                        Button("删除", role: .destructive) { deleteSite(site) }
+                    }
+                    .swipeActions(edge: .trailing) {
+                        Button("删除", role: .destructive) { deleteSite(site) }
+                        Button("编辑") { editSite = site }.tint(.blue)
+                    }
                 }
+                .onDelete { offsets in
+                    for index in offsets { deleteSite(sites[index]) }
+                }
+                Button {
+                    editSite = nil
+                    showingAddSite = true
+                } label: {
+                    Label("手动添加站点", systemImage: "plus.circle")
+                }
+            }
+            .sheet(item: $editSite) { site in
+                SiteEditSheet(site: site, onSave: { updated in upsertSite(updated) })
+            }
+            .sheet(isPresented: $showingAddSite) {
+                SiteEditSheet(site: nil, onSave: { created in upsertSite(created) })
             }
             Section("Spider 兼容层") {
                 TextField("Spider 网关地址（可选）", text: $gatewayDraft)
@@ -98,6 +123,23 @@ struct SettingsView: View {
         if site.isFeatureCenter { return "打开 iOS 功能中心（保留 FishConfig 入口）" }
         if site.type == 3 { return "\(site.kindLabel) · \(site.nativeBaseURLs.first?.host ?? "需兼容执行")" }
         return "\(site.kindLabel) · \(site.api)"
+    }
+
+    private func upsertSite(_ site: TVBoxSite) {
+        if let index = sites.firstIndex(where: { $0.id == site.id }) {
+            sites[index] = site
+        } else {
+            sites.append(site)
+        }
+        settings.savedSites = sites
+        message = "站点已保存：\(site.name)"
+    }
+
+    private func deleteSite(_ site: TVBoxSite) {
+        sites.removeAll { $0.id == site.id }
+        settings.savedSites = sites
+        if settings.selectedSite?.id == site.id { settings.selectedSite = nil }
+        message = "已删除：\(site.name)"
     }
 
     private func saveAPI() {
