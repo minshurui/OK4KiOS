@@ -11,7 +11,8 @@ struct FFmpegPlayerView: UIViewRepresentable {
     func makeUIView(context: Context) -> IOSVideoPlayerView {
         let view = IOSVideoPlayerView()
         guard let url = URL(string: urlString) else { return view }
-        KSOptions.secondPlayerType = KSMEPlayer.self
+        KSOptions.firstPlayerType = KSMEPlayer.self
+        KSOptions.secondPlayerType = KSAVPlayer.self
         KSOptions.hardwareDecode = true
         let options = KSOptions()
         if !headers.isEmpty { options.appendHeader(headers) }
