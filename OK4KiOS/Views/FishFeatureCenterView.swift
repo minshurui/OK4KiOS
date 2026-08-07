@@ -104,12 +104,11 @@ struct FishFeatureCenterView: View {
             let cache = URLCache.shared
             bytes += Int64(cache.currentDiskUsage)
             bytes += Int64(cache.currentMemoryUsage)
-            if let temp = FileManager.default.temporaryDirectory.path {
-                if let enumerator = FileManager.default.enumerator(atPath: temp) {
-                    for case let url as URL in enumerator {
-                        if let value = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize {
-                            bytes += Int64(value)
-                        }
+            let temp = FileManager.default.temporaryDirectory
+            if let enumerator = FileManager.default.enumerator(atPath: temp.path) {
+                for case let url as URL in enumerator {
+                    if let value = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize {
+                        bytes += Int64(value)
                     }
                 }
             }
@@ -120,10 +119,10 @@ struct FishFeatureCenterView: View {
 
     private func clearCache() {
         URLCache.shared.removeAllCachedResponses()
-        if let temp = FileManager.default.temporaryDirectory.path,
-           let items = try? FileManager.default.contentsOfDirectory(atPath: temp) {
+        let temp = FileManager.default.temporaryDirectory
+        if let items = try? FileManager.default.contentsOfDirectory(atPath: temp.path) {
             for item in items {
-                try? FileManager.default.removeItem(atPath: temp + "/" + item)
+                try? FileManager.default.removeItem(atPath: temp.appendingPathComponent(item).path)
             }
         }
         refreshCacheSize()

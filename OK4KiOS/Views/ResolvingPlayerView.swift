@@ -11,7 +11,8 @@ struct ResolvingPlayerView: View {
     var body: some View {
         Group {
             if let playback {
-                PlayerView(urlString: playback.url, headers: playback.headers, vod: vod, episodeName: episode.name, episodes: flag.episodes)
+                let episodes = vod.flags.first { $0.name == flag }?.episodes ?? [episode]
+                PlayerView(urlString: playback.url, headers: playback.headers, vod: vod, episodeName: episode.name, episodes: episodes)
             } else if let errorMessage {
                 VStack(spacing: 16) {
                     Image(systemName: "exclamationmark.triangle").font(.largeTitle)
