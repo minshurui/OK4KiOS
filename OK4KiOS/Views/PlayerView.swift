@@ -12,6 +12,7 @@ struct PlayerView: View {
     @StateObject private var model: PlayerViewModel
     @State private var useFFmpeg: Bool
     @State private var fallbackAttempts = 0
+    @State private var currentEpisodeIndex = 0
 
     init(urlString: String, headers: [String: String] = [:], vod: Vod? = nil, episodeName: String? = nil, episodes: [Episode] = [], isLive: Bool = false, onClose: (() -> Void)? = nil) {
         let request = PlaybackRequest.parse(urlString, additionalHeaders: headers)
@@ -99,12 +100,18 @@ struct PlayerView: View {
                 model.errorMessage = "播放失败：系统与 FFmpeg 引擎均无法播放此流"
             }
         }
+        .onChange(of: model.ended) { ended in
+            guard ended, !isLive, currentEpisodeIndex + 1 < episodes.count else { return }
+            currentEpisodeIndex += 1
+            switchEpisode(episodes[currentEpisodeIndex])
+        }
         .alert("播放失败", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
             Button("确定", role: .cancel) { model.errorMessage = nil }
         } message: { Text(model.errorMessage ?? "") }
     }
 
     private func switchEpisode(_ episode: Episode) {
+        if let index = episodes.firstIndex(of: episode) { currentEpisodeIndex = index }
         let request = PlaybackRequest.parse(episode.url, additionalHeaders: headers)
         let isHLS = request.urlString.lowercased().contains(".m3u8")
         let needsProxy = isLive && !request.headers.isEmpty && isHLS
@@ -166,6 +173,7 @@ final class PlayerViewModel: ObservableObject, @unchecked Sendable {
     @Published var errorMessage: String?
     @Published private(set) var rate: Float = 1
     @Published private(set) var didFail = false
+    @Published private(set) var ended = false
     private var urlString: String
     private let vod: Vod?
     private var episodeName: String?
@@ -215,6 +223,7 @@ final class PlayerViewModel: ObservableObject, @unchecked Sendable {
         self.urlString = urlString
         self.episodeName = episodeName
         didFail = false
+        ended = false
         installRecoveryObservers()
         if let vod {
             LibraryStore.shared.record(vod, episode: Episode(name: episodeName, url: urlString))
@@ -266,6 +275,10 @@ final class PlayerViewModel: ObservableObject, @unchecked Sendable {
                 guard let self else { return }
                 AudioSessionController.shared.activate()
                 if self.isLive { self.player.play() }
+            })
+            observers.append(NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { [weak self] _ in
+                guard let self, !self.isLive else { return }
+                self.ended = true
             })
         }
     }

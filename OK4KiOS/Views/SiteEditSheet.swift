@@ -44,9 +44,8 @@ struct SiteEditSheet: View {
                     TextField("api 地址 / csp_ 名称", text: $api)
                         .textInputAutocapitalization(.never).autocorrectionDisabled(true)
                     if type == 3 {
-                        TextField("ext（JSON，可选）", text: $extValue, axis: .vertical)
+                        TextField("ext（JSON，可选）", text: $extValue)
                             .textInputAutocapitalization(.never).autocorrectionDisabled(true)
-                            .lineLimit(2...4)
                         TextField("jar 地址（可选）", text: $jar)
                             .textInputAutocapitalization(.never).autocorrectionDisabled(true)
                     }

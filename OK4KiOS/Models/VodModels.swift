@@ -11,6 +11,18 @@ struct VodResult: Codable, Sendable {
     let `class`: [VodClass]?
     let filters: [String: [VodFilter]]?
 
+    init(code: LossyInt?, msg: String?, page: LossyInt?, pagecount: LossyInt?, limit: LossyInt?, total: LossyInt?, list: [Vod], class: [VodClass]?, filters: [String: [VodFilter]]? = nil) {
+        self.code = code
+        self.msg = msg
+        self.page = page
+        self.pagecount = pagecount
+        self.limit = limit
+        self.total = total
+        self.list = list
+        self.`class` = `class`
+        self.filters = filters
+    }
+
     var types: [VodClass] { `class` ?? [] }
 
     enum CodingKeys: String, CodingKey {
@@ -38,6 +50,13 @@ struct VodClass: Codable, Identifiable, Hashable, Sendable {
     let typeName: LossyString?
     let typeFlag: LossyString?
     let filters: [VodFilter]?
+
+    init(typeID: LossyString?, typeName: LossyString?, typeFlag: LossyString?, filters: [VodFilter]? = nil) {
+        self.typeID = typeID
+        self.typeName = typeName
+        self.typeFlag = typeFlag
+        self.filters = filters
+    }
 
     var id: String {
         let value = typeID?.value.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
