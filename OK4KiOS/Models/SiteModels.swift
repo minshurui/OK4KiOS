@@ -43,7 +43,7 @@ struct TVBoxSite: Codable, Identifiable, Hashable, Sendable {
         case 0: return "XML"
         case 1: return "JSON"
         case 3: return nativeBaseURLs.isEmpty ? "待原生移植 Spider" : "Spider 原生/网关"
-        case 4: return "待原生移植规则"
+        case 4: return "规则网关"
         default: return "Type \(type)"
         }
     }
