@@ -9,7 +9,11 @@ struct TVBoxConfig: Decodable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         spider = (try? container.decode(String.self, forKey: .spider)) ?? ""
-        sites = (try? container.decode([TVBoxSite].self, forKey: .sites)) ?? []
+        var decodedSites = (try? container.decode([TVBoxSite].self, forKey: .sites)) ?? []
+        for index in decodedSites.indices where decodedSites[index].jar.isEmpty {
+            decodedSites[index].jar = spider
+        }
+        sites = decodedSites
     }
 }
 
@@ -22,6 +26,8 @@ struct TVBoxSite: Codable, Identifiable, Hashable, Sendable {
     let quickSearch: Bool
     let filterable: Bool
     let ext: JSONValue?
+    var jar: String
+    let headers: [String: String]
 
     var id: String { key.isEmpty ? name + api : key }
     var apiURL: URL? { URL(string: api.trimmingCharacters(in: .whitespacesAndNewlines)) }
@@ -29,7 +35,7 @@ struct TVBoxSite: Codable, Identifiable, Hashable, Sendable {
     var canRunNatively: Bool { type == 0 || type == 1 || (type == 3 && !nativeBaseURLs.isEmpty) }
 
     enum CodingKeys: String, CodingKey {
-        case key, name, type, api, searchable, quickSearch = "quickSearch", filterable, ext
+        case key, name, type, api, searchable, quickSearch = "quickSearch", filterable, ext, jar, header, headers
     }
 
     init(from decoder: Decoder) throws {
@@ -42,6 +48,24 @@ struct TVBoxSite: Codable, Identifiable, Hashable, Sendable {
         quickSearch = Self.bool(container, .quickSearch, default: true)
         filterable = Self.bool(container, .filterable, default: false)
         ext = try? container.decode(JSONValue.self, forKey: .ext)
+        jar = (try? container.decode(String.self, forKey: .jar)) ?? ""
+        headers = (try? container.decode([String: String].self, forKey: .header))
+            ?? (try? container.decode([String: String].self, forKey: .headers))
+            ?? [:]
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(key, forKey: .key)
+        try container.encode(name, forKey: .name)
+        try container.encode(type, forKey: .type)
+        try container.encode(api, forKey: .api)
+        try container.encode(searchable, forKey: .searchable)
+        try container.encode(quickSearch, forKey: .quickSearch)
+        try container.encode(filterable, forKey: .filterable)
+        try container.encodeIfPresent(ext, forKey: .ext)
+        try container.encode(jar, forKey: .jar)
+        try container.encode(headers, forKey: .header)
     }
 
     private static func bool(_ container: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys, default fallback: Bool) -> Bool {

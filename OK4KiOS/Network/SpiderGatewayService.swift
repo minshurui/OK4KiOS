@@ -63,7 +63,14 @@ struct SpiderGatewayService: VodServiceProtocol {
     }
 
     private var siteDictionary: [String: Any] {
-        var result: [String: Any] = ["key": site.key, "name": site.name, "type": site.type, "api": site.api]
+        var result: [String: Any] = [
+            "key": site.key,
+            "name": site.name,
+            "type": site.type,
+            "api": site.api,
+            "jar": site.jar,
+            "header": site.headers
+        ]
         if let ext = site.ext, let data = ext.encodedString.data(using: .utf8), let object = try? JSONSerialization.jsonObject(with: data) {
             result["ext"] = object
         }
