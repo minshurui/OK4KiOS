@@ -66,7 +66,11 @@ final class AppSettings: ObservableObject {
         vodAPIType = defaults.object(forKey: Keys.vodAPIType) == nil ? 1 : defaults.integer(forKey: Keys.vodAPIType)
         configURL = defaults.string(forKey: Keys.configURL) ?? "https://tv.789056.xyz/tvbox.json"
         preferFFmpeg = defaults.bool(forKey: Keys.preferFFmpeg)
-        selectedSite = defaults.data(forKey: Keys.selectedSite).flatMap { try? JSONDecoder().decode(TVBoxSite.self, from: $0) }
+        let storedSelected = defaults.data(forKey: Keys.selectedSite).flatMap { try? JSONDecoder().decode(TVBoxSite.self, from: $0) }
+        // FishConfig stays in savedSites as a first-class feature entry, but
+        // older builds may have persisted it as the active movie catalogue.
+        // Clear only that invalid selection so the VOD tab uses the manual API.
+        selectedSite = storedSelected?.isFeatureCenter == true ? nil : storedSelected
         spiderGateway = defaults.string(forKey: Keys.spiderGateway) ?? ""
         savedSites = defaults.data(forKey: Keys.savedSites).flatMap { try? JSONDecoder().decode([TVBoxSite].self, from: $0) } ?? []
     }
