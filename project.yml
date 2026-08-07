@@ -1,7 +1,8 @@
 name: OK4KiOS
 options:
   bundleIdPrefix: com.fongmi
-  xcodeVersion: "15.4"
+  xcodeVersion: "15.0"
+  projectFormat: xcode15_0
   deploymentTarget:
     iOS: "15.0"
 configs:
