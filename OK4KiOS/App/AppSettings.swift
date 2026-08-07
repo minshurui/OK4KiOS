@@ -31,6 +31,12 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(spiderGateway, forKey: Keys.spiderGateway) }
     }
 
+    @Published var savedSites: [TVBoxSite] {
+        didSet {
+            if let data = try? JSONEncoder().encode(savedSites) { defaults.set(data, forKey: Keys.savedSites) }
+        }
+    }
+
     var vodAPIURL: URL? {
         URL(string: vodAPI.trimmingCharacters(in: .whitespacesAndNewlines))
     }
@@ -44,6 +50,7 @@ final class AppSettings: ObservableObject {
         static let preferFFmpeg = "settings.preferFFmpeg"
         static let selectedSite = "settings.selectedSite"
         static let spiderGateway = "settings.spiderGateway"
+        static let savedSites = "settings.savedSites"
     }
 
     private init(defaults: UserDefaults = .standard) {
@@ -51,18 +58,20 @@ final class AppSettings: ObservableObject {
         vodAPI = defaults.string(forKey: Keys.vodAPI)
             ?? "https://tv.789056.xyz/api.php/provide/vod/"
         liveSource = defaults.string(forKey: Keys.liveSource) ?? ""
-        configURL = defaults.string(forKey: Keys.configURL) ?? ""
+        configURL = defaults.string(forKey: Keys.configURL) ?? "https://tv.789056.xyz/tvbox.json"
         preferFFmpeg = defaults.bool(forKey: Keys.preferFFmpeg)
         selectedSite = defaults.data(forKey: Keys.selectedSite).flatMap { try? JSONDecoder().decode(TVBoxSite.self, from: $0) }
         spiderGateway = defaults.string(forKey: Keys.spiderGateway) ?? ""
+        savedSites = defaults.data(forKey: Keys.savedSites).flatMap { try? JSONDecoder().decode([TVBoxSite].self, from: $0) } ?? []
     }
 
     func reset() {
         vodAPI = "https://tv.789056.xyz/api.php/provide/vod/"
         liveSource = ""
-        configURL = ""
+        configURL = "https://tv.789056.xyz/tvbox.json"
         preferFFmpeg = false
         selectedSite = nil
         spiderGateway = ""
+        savedSites = []
     }
 }

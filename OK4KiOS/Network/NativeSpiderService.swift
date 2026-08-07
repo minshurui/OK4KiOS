@@ -8,12 +8,14 @@ struct NativeSpiderService: VodServiceProtocol {
     let site: TVBoxSite
     private let client: APIClientProtocol
     private let baseURL: URL
+    private let baseURLs: [URL]
 
     init(site: TVBoxSite, client: APIClientProtocol = APIClient()) throws {
         guard let url = site.nativeBaseURLs.first else { throw SpiderError.noUsableHost }
         self.site = site
         self.client = client
         self.baseURL = url
+        self.baseURLs = site.nativeBaseURLs
     }
 
     func home(page: Int) async throws -> VodResult {
@@ -104,7 +106,7 @@ struct NativeSpiderService: VodServiceProtocol {
 
     private func classes(_ document: Document, pageURL: URL) throws -> [VodClass] {
         var result: [VodClass] = []
-        for link in try document.select("a[href*=/vodtype/], a[href*=/vodshow/]") {
+        for link in try document.select("a[href*='/vodtype/'], a[href*='/vodshow/']") {
             let name = try link.text().trimmingCharacters(in: .whitespacesAndNewlines)
             let href = try link.attr("href")
             guard !name.isEmpty else { continue }
@@ -146,13 +148,30 @@ struct NativeSpiderService: VodServiceProtocol {
     }
 
     private func html(_ url: URL) async throws -> Document {
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 25
-        defaultHeaders(referer: baseURL).forEach { request.setValue($1, forHTTPHeaderField: $0) }
-        let (data, _) = try await client.data(for: request)
-        let encoding = String.Encoding.utf8
-        guard let text = String(data: data, encoding: encoding) ?? String(data: data, encoding: .isoLatin1) else { throw SpiderError.invalidResponse }
-        return try SwiftSoup.parse(text, url.absoluteString)
+        var lastError: Error = SpiderError.invalidResponse
+        for candidate in requestCandidates(for: url) {
+            do {
+                var request = URLRequest(url: candidate)
+                request.timeoutInterval = 25
+                defaultHeaders(referer: candidate).forEach { request.setValue($1, forHTTPHeaderField: $0) }
+                let (data, _) = try await client.data(for: request)
+                guard let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) else { throw SpiderError.invalidResponse }
+                return try SwiftSoup.parse(text, candidate.absoluteString)
+            } catch { lastError = error }
+        }
+        throw lastError
+    }
+
+    private func requestCandidates(for url: URL) -> [URL] {
+        guard url.host == baseURL.host else { return [url] }
+        var result = [url]
+        for host in baseURLs.dropFirst() {
+            var components = URLComponents(url: host, resolvingAgainstBaseURL: false)
+            components?.path = url.path
+            components?.query = url.query
+            if let candidate = components?.url, !result.contains(candidate) { result.append(candidate) }
+        }
+        return result
     }
 
     private func pageURL(_ url: URL, page: Int) -> URL {

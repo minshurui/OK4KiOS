@@ -55,7 +55,7 @@ struct SettingsView: View {
                 Button("恢复默认", role: .destructive) {
                     settings.reset()
                     apiDraft = settings.vodAPI
-                    configDraft = ""
+                    configDraft = settings.configURL
                     gatewayDraft = ""
                     sites = []
                 }
@@ -71,6 +71,7 @@ struct SettingsView: View {
             apiDraft = settings.vodAPI
             configDraft = settings.configURL
             gatewayDraft = settings.spiderGateway
+            if sites.isEmpty { sites = settings.savedSites }
         }
         .alert("设置", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
             Button("确定", role: .cancel) { message = nil }
@@ -100,6 +101,7 @@ struct SettingsView: View {
             let loaded = try await ConfigService().load(urlString: value)
             settings.configURL = value
             sites = loaded
+            settings.savedSites = loaded
             message = loaded.isEmpty ? "配置中没有可用站点" : "已导入 \(loaded.count) 个接口（含 type 3 Spider），请点击一个启用"
         } catch {
             message = "配置导入失败：\(error.localizedDescription)"
