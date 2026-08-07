@@ -9,11 +9,12 @@ struct PlayerView: View {
     @StateObject private var model: PlayerViewModel
 
     init(urlString: String, headers: [String: String] = [:], vod: Vod? = nil, episodeName: String? = nil) {
-        self.urlString = urlString
-        self.headers = headers
+        let request = PlaybackRequest.parse(urlString, additionalHeaders: headers)
+        self.urlString = request.urlString
+        self.headers = request.headers
         self.vod = vod
         self.episodeName = episodeName
-        _model = StateObject(wrappedValue: PlayerViewModel(urlString: urlString, headers: headers, vod: vod, episodeName: episodeName))
+        _model = StateObject(wrappedValue: PlayerViewModel(urlString: request.urlString, headers: request.headers, vod: vod, episodeName: episodeName))
     }
 
     var body: some View {
