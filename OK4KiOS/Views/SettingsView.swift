@@ -12,10 +12,17 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section("点播接口") {
-                TextField("AppleCMS API 地址", text: $apiDraft)
+                Picker("接口格式", selection: $settings.vodAPIType) {
+                    Text("JSON · type 1").tag(1)
+                    Text("XML · type 0").tag(0)
+                }
+                .pickerStyle(.segmented)
+                TextField("TVBox 点播 API 地址", text: $apiDraft)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled(true)
                 Button("保存接口") { saveAPI() }
+                Text("手动接口支持 TVBox type 0 XML 和 type 1 JSON；Spider/type 4 请通过下方 TVBox 配置导入。")
+                    .font(.caption).foregroundColor(.secondary)
             }
             Section("TVBox 配置") {
                 TextField("配置 JSON 地址", text: $configDraft)
@@ -31,7 +38,7 @@ struct SettingsView: View {
                     } label: {
                         VStack(alignment: .leading) {
                             Text((settings.selectedSite?.id == site.id ? "✓ " : "") + site.name)
-                            Text(site.type == 3 ? "Spider · \(site.nativeBaseURLs.first?.host ?? "网关执行")" : site.api)
+                            Text("\(site.kindLabel) · \(site.type == 3 ? (site.nativeBaseURLs.first?.host ?? "Android 执行") : site.api)")
                                 .font(.caption).foregroundColor(.secondary).lineLimit(1)
                         }
                     }
@@ -102,7 +109,7 @@ struct SettingsView: View {
             settings.configURL = value
             sites = loaded
             settings.savedSites = loaded
-            message = loaded.isEmpty ? "配置中没有可用站点" : "已导入 \(loaded.count) 个接口（含 type 3 Spider），请点击一个启用"
+            message = loaded.isEmpty ? "配置中没有可用站点" : "已导入 \(loaded.count) 个接口（XML、JSON、Spider、规则接口），请点击一个启用"
         } catch {
             message = "配置导入失败：\(error.localizedDescription)"
         }

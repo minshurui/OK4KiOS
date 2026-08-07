@@ -37,6 +37,6 @@ GitHub Actions 会生成 `OK4KiOS-TrollStore-unsigned.ipa` artifact。
 
 已内置仅监听 `127.0.0.1:9978...9998` 的 Swift HTTP 代理，支持 Header、Range、HTTP 状态透传及 HLS 播放列表相对地址重写，用于需要 Cookie/Referer 的分片媒体。
 
-TVBox type 3 已加入 iOS 原生 Spider 兼容层：带 `site`、`host` 或 `url` 扩展网址的规则由 SwiftSoup 网络内核直接执行首页、分类、搜索、详情和播放解析；其余加密 JAR/Guard 规则可配置 Spider Gateway，通过统一的 home/category/detail/search/player JSON 协议执行。配置导入会保留 type 0/1 和 type 3 站点，不再丢弃 Spider 线路，并把配置顶层 `spider` JAR 继承到每个未单独声明 JAR 的站点。
+TVBox 点播现区分 type 0 XML、type 1 JSON、type 3 Spider 和 type 4 规则接口，不再把所有 HTTP API 当成 AppleCMS JSON。type 3 带 `site`、`host` 或 `url` 扩展网址的规则由 SwiftSoup 网络内核直接执行首页、分类、搜索、详情和播放解析；其余加密 JAR/Guard 及 type 4 规则可配置 Spider Gateway，通过统一的 home/category/detail/search/player JSON 协议交给 Android 原版 `SiteApi` 执行。配置导入会保留 type 0/1/3/4 站点，并把配置顶层 `spider` JAR 继承到每个未单独声明 JAR 的站点。
 
 配套 Android 版已增加 `POST /api/spider` 网关端点。Android 设备需先载入与 iOS 相同的 TVBox 配置；网关只执行该配置中已加载的 type 3 站点，避免客户端提交任意 JAR。iOS 设置中的网关填写 Android 设备地址（例如 `http://192.168.1.20:9978`），实际端口以 Android App 服务页显示为准。两台设备需在同一可信局域网或 Tailscale 网络中。

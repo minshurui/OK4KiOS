@@ -17,6 +17,6 @@ struct ConfigService {
         request.setValue("OK4KiOS/0.2", forHTTPHeaderField: "User-Agent")
         let (data, _) = try await client.data(for: request)
         return try JSONDecoder().decode(TVBoxConfig.self, from: data).sites
-            .filter { ($0.type == 0 || $0.type == 1) ? $0.apiURL != nil : $0.type == 3 }
+            .filter { ($0.type == 0 || $0.type == 1) ? $0.apiURL != nil : ($0.type == 3 || $0.type == 4) }
     }
 }

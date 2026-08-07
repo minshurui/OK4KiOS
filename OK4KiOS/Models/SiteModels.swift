@@ -33,9 +33,31 @@ struct TVBoxSite: Codable, Identifiable, Hashable, Sendable {
     var apiURL: URL? { URL(string: api.trimmingCharacters(in: .whitespacesAndNewlines)) }
     var nativeBaseURLs: [URL] { ext?.candidateURLs ?? [] }
     var canRunNatively: Bool { type == 0 || type == 1 || (type == 3 && !nativeBaseURLs.isEmpty) }
+    var kindLabel: String {
+        switch type {
+        case 0: return "XML"
+        case 1: return "JSON"
+        case 3: return nativeBaseURLs.isEmpty ? "Spider 网关" : "Spider 原生/网关"
+        case 4: return "规则网关"
+        default: return "Type \(type)"
+        }
+    }
 
     enum CodingKeys: String, CodingKey {
         case key, name, type, api, searchable, quickSearch = "quickSearch", filterable, ext, jar, header, headers
+    }
+
+    init(key: String, name: String, type: Int, api: String, searchable: Bool = true, quickSearch: Bool = true, filterable: Bool = false, ext: JSONValue? = nil, jar: String = "", headers: [String: String] = [:]) {
+        self.key = key
+        self.name = name
+        self.type = type
+        self.api = api
+        self.searchable = searchable
+        self.quickSearch = quickSearch
+        self.filterable = filterable
+        self.ext = ext
+        self.jar = jar
+        self.headers = headers
     }
 
     init(from decoder: Decoder) throws {

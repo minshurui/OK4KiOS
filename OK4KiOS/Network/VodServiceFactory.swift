@@ -3,10 +3,11 @@ import Foundation
 enum VodServiceFactory {
     static func current(settings: AppSettings = .shared) -> VodServiceProtocol {
         guard let site = settings.selectedSite else {
-            return VodService(baseURL: settings.vodAPIURL ?? VodService.defaultBaseURL)
+            let custom = TVBoxSite(key: "manual", name: "手动接口", type: settings.vodAPIType, api: settings.vodAPI)
+            return TVBoxAPIService(site: custom)
         }
         if site.type == 0 || site.type == 1 {
-            return VodService(baseURL: site.apiURL ?? settings.vodAPIURL ?? VodService.defaultBaseURL)
+            return TVBoxAPIService(site: site)
         }
         let gateway = URL(string: settings.spiderGateway).flatMap {
             ["http", "https"].contains($0.scheme?.lowercased() ?? "") ? SpiderGatewayService(site: site, gatewayURL: $0) : nil
