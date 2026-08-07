@@ -20,14 +20,6 @@ final class SiteModelsTests: XCTestCase {
         XCTAssertFalse(config.sites[1].canRunNatively)
     }
 
-    func testExcludesAndroidOnlyUtilitySite() throws {
-        let config = try JSONDecoder().decode(TVBoxConfig.self, from: #"{"sites":[{"key":"FishConfig","name":"设置中心","type":3,"api":"csp_FishConfig"},{"key":"Wogg","name":"玩偶","type":3,"api":"csp_Wogg","ext":{"site":"https://wogg.example"}}]}"#.data(using: .utf8)!)
-        XCTAssertFalse(config.sites[0].isBrowsableVodSite)
-        XCTAssertFalse(config.sites[0].canRunNatively)
-        XCTAssertTrue(config.sites[1].isBrowsableVodSite)
-        XCTAssertTrue(config.sites[1].canRunNatively)
-    }
-
     func testDecodesType4RuleSite() throws {
         let data = #"{"sites":[{"key":"rule","name":"规则接口","type":4,"api":"https://example.test/rule","ext":"payload"}]}"#.data(using: .utf8)!
         let config = try JSONDecoder().decode(TVBoxConfig.self, from: data)

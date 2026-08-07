@@ -66,14 +66,9 @@ final class AppSettings: ObservableObject {
         vodAPIType = defaults.object(forKey: Keys.vodAPIType) == nil ? 1 : defaults.integer(forKey: Keys.vodAPIType)
         configURL = defaults.string(forKey: Keys.configURL) ?? "https://tv.789056.xyz/tvbox.json"
         preferFFmpeg = defaults.bool(forKey: Keys.preferFFmpeg)
-        let storedSelected = defaults.data(forKey: Keys.selectedSite).flatMap { try? JSONDecoder().decode(TVBoxSite.self, from: $0) }
-        let storedSites = defaults.data(forKey: Keys.savedSites).flatMap { try? JSONDecoder().decode([TVBoxSite].self, from: $0) } ?? []
-        // Older builds persisted Android-only utility entries such as
-        // FishConfig as the selected VOD site. Sanitize them on startup so
-        // iOS never routes a settings action into the VOD Spider resolver.
-        selectedSite = storedSelected?.isBrowsableVodSite == true ? storedSelected : nil
+        selectedSite = defaults.data(forKey: Keys.selectedSite).flatMap { try? JSONDecoder().decode(TVBoxSite.self, from: $0) }
         spiderGateway = defaults.string(forKey: Keys.spiderGateway) ?? ""
-        savedSites = storedSites.filter(\.isBrowsableVodSite)
+        savedSites = defaults.data(forKey: Keys.savedSites).flatMap { try? JSONDecoder().decode([TVBoxSite].self, from: $0) } ?? []
     }
 
     func reset() {

@@ -32,16 +32,7 @@ struct TVBoxSite: Codable, Identifiable, Hashable, Sendable {
     var id: String { key.isEmpty ? name + api : key }
     var apiURL: URL? { URL(string: api.trimmingCharacters(in: .whitespacesAndNewlines)) }
     var nativeBaseURLs: [URL] { ext?.candidateURLs ?? [] }
-    var isBrowsableVodSite: Bool {
-        // TVBox configurations also expose Android-only utility entries as
-        // type 3 sites. They are actions/settings, not VOD catalogues.
-        let utilityKeys: Set<String> = ["fishconfig", "config", "push_agent", "proxy"]
-        let normalizedKey = key.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let normalizedAPI = api.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return !utilityKeys.contains(normalizedKey)
-            && !normalizedAPI.contains("csp_fishconfig")
-    }
-    var canRunNatively: Bool { isBrowsableVodSite && (type == 0 || type == 1 || (type == 3 && !nativeBaseURLs.isEmpty)) }
+    var canRunNatively: Bool { type == 0 || type == 1 || (type == 3 && !nativeBaseURLs.isEmpty) }
     var kindLabel: String {
         switch type {
         case 0: return "XML"
