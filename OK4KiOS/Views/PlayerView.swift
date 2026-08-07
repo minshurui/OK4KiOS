@@ -55,22 +55,20 @@ struct PlayerView: View {
         .ignoresSafeArea()
         .navigationTitle(episodeName ?? vod?.name ?? "播放")
         .toolbar {
-            if !forceSystemPlayer {
-                ToolbarItemGroup(placement: .navigationBarTrailing) {
-                    Button {
-                        useFFmpeg.toggle()
-                        AppSettings.shared.preferFFmpeg = useFFmpeg
-                        if useFFmpeg { model.pause() } else { model.play() }
-                    } label: {
-                        Image(systemName: useFFmpeg ? "waveform.badge.plus" : "play.rectangle")
-                    }
-                    .accessibilityLabel(useFFmpeg ? "切换系统播放器" : "切换 FFmpeg 播放器")
-                    Menu {
-                        ForEach(PlayerViewModel.supportedRates, id: \.self) { rate in
-                            Button(rateLabel(rate)) { model.setRate(rate) }
-                        }
-                    } label: { Image(systemName: "speedometer") }
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                Button {
+                    useFFmpeg.toggle()
+                    AppSettings.shared.preferFFmpeg = useFFmpeg
+                    if useFFmpeg { model.pause() } else { model.play() }
+                } label: {
+                    Image(systemName: useFFmpeg ? "waveform.badge.plus" : "play.rectangle")
                 }
+                .accessibilityLabel(useFFmpeg ? "切换系统播放器" : "切换 FFmpeg 播放器")
+                Menu {
+                    ForEach(PlayerViewModel.supportedRates, id: \.self) { rate in
+                        Button(rateLabel(rate)) { model.setRate(rate) }
+                    }
+                } label: { Image(systemName: "speedometer") }
             }
         }
         .onAppear {
@@ -176,7 +174,7 @@ final class PlayerViewModel: ObservableObject, @unchecked Sendable {
             guard let self,
                   let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
                   AVAudioSession.InterruptionType(rawValue: raw) == .ended else { return }
-            Task { @MainActor in self.play() }
+            self.play()
         })
         observers.append(NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] _ in
             guard let self, self.player.timeControlStatus != .paused else { return }
@@ -186,15 +184,11 @@ final class PlayerViewModel: ObservableObject, @unchecked Sendable {
         if let item = player.currentItem {
             observers.append(NotificationCenter.default.addObserver(forName: .AVPlayerItemPlaybackStalled, object: item, queue: .main) { [weak self] _ in
                 guard let self else { return }
-                Task { @MainActor in
-                    AudioSessionController.shared.activate()
-                    if self.isLive { self.player.play() }
-                }
+                AudioSessionController.shared.activate()
+                if self.isLive { self.player.play() }
             })
             observers.append(NotificationCenter.default.addObserver(forName: .AVPlayerItemFailedToPlayToEndTime, object: item, queue: .main) { [weak self] note in
-                Task { @MainActor in
-                    self?.errorMessage = (note.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error)?.localizedDescription ?? "直播流中断"
-                }
+                self?.errorMessage = (note.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error)?.localizedDescription ?? "直播流中断"
             })
         }
     }
