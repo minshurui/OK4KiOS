@@ -17,6 +17,31 @@ struct VodHomeView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
+                if keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                   !settings.searchHistory.isEmpty, items.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text("最近搜索").font(.headline)
+                            Spacer()
+                            Button("清空") { settings.clearSearchHistory() }
+                                .font(.caption).foregroundColor(.secondary)
+                        }
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(settings.searchHistory, id: \.self) { word in
+                                    Button(word) {
+                                        keyword = word
+                                        Task { await reload() }
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .tint(.secondary)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+
                 if !types.isEmpty && keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
@@ -77,7 +102,10 @@ struct VodHomeView: View {
         .background(OKTheme.background.ignoresSafeArea())
         .navigationTitle(settings.selectedSite?.name ?? "OK影视4K")
         .searchable(text: $keyword, prompt: "搜索影片")
-        .onSubmit(of: .search) { Task { await reload() } }
+        .onSubmit(of: .search) {
+            settings.recordSearch(keyword)
+            Task { await reload() }
+        }
         .overlay { if isLoading && items.isEmpty { ProgressView("加载中…") } }
         .alert("加载失败", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
             Button("确定", role: .cancel) { errorMessage = nil }
@@ -165,6 +193,20 @@ struct VodDetailView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(detail.name).font(.title2).bold()
                         Text(detail.remark).foregroundColor(OKTheme.accent)
+                        if !detail.year.isEmpty || !detail.area.isEmpty || !detail.director.isEmpty || !detail.actor.isEmpty {
+                            VStack(alignment: .leading, spacing: 4) {
+                                if !detail.year.isEmpty || !detail.area.isEmpty {
+                                    Text([detail.year, detail.area].filter { !$0.isEmpty }.joined(separator: " · "))
+                                        .font(.subheadline).foregroundColor(.secondary)
+                                }
+                                if !detail.director.isEmpty {
+                                    Text("导演：\(detail.director)").font(.subheadline).foregroundColor(.secondary).lineLimit(2)
+                                }
+                                if !detail.actor.isEmpty {
+                                    Text("主演：\(detail.actor)").font(.subheadline).foregroundColor(.secondary).lineLimit(3)
+                                }
+                            }
+                        }
                         if !detail.content.isEmpty { Text(detail.content).font(.body).foregroundColor(.secondary).lineLimit(7) }
                     }
                 }

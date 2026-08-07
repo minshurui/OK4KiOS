@@ -59,6 +59,10 @@ struct Vod: Codable, Identifiable, Hashable, Sendable {
     }
     var imageURL: URL? { URL(string: vodPic?.value ?? "") }
     var remark: String { vodRemarks?.value ?? "" }
+    var year: String { vodYear?.value ?? "" }
+    var area: String { vodArea?.value ?? "" }
+    var director: String { vodDirector?.value ?? "" }
+    var actor: String { vodActor?.value ?? "" }
     var content: String { (vodContent?.value ?? "").replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression) }
 
     var flags: [PlayFlag] {

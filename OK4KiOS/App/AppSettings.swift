@@ -47,6 +47,25 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var searchHistory: [String] {
+        didSet {
+            if let data = try? JSONEncoder().encode(searchHistory) { defaults.set(data, forKey: Keys.searchHistory) }
+        }
+    }
+
+    func recordSearch(_ keyword: String) {
+        let value = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return }
+        var list = searchHistory.filter { $0.caseInsensitiveCompare(value) != .orderedSame }
+        list.insert(value, at: 0)
+        if list.count > 12 { list = Array(list.prefix(12)) }
+        searchHistory = list
+    }
+
+    func clearSearchHistory() {
+        searchHistory = []
+    }
+
     var vodAPIURL: URL? {
         URL(string: vodAPI.trimmingCharacters(in: .whitespacesAndNewlines))
     }
@@ -63,6 +82,7 @@ final class AppSettings: ObservableObject {
         static let selectedSite = "settings.selectedSite"
         static let spiderGateway = "settings.spiderGateway"
         static let savedSites = "settings.savedSites"
+        static let searchHistory = "settings.searchHistory"
     }
 
     private init(defaults: UserDefaults = .standard) {
@@ -81,6 +101,7 @@ final class AppSettings: ObservableObject {
         selectedSite = storedSelected?.isFeatureCenter == true ? nil : storedSelected
         spiderGateway = defaults.string(forKey: Keys.spiderGateway) ?? ""
         savedSites = defaults.data(forKey: Keys.savedSites).flatMap { try? JSONDecoder().decode([TVBoxSite].self, from: $0) } ?? []
+        searchHistory = defaults.data(forKey: Keys.searchHistory).flatMap { try? JSONDecoder().decode([String].self, from: $0) } ?? []
     }
 
     func reset() {
@@ -93,5 +114,6 @@ final class AppSettings: ObservableObject {
         selectedSite = nil
         spiderGateway = ""
         savedSites = []
+        searchHistory = []
     }
 }
