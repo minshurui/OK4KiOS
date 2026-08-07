@@ -31,4 +31,6 @@ GitHub Actions 会生成 `OK4KiOS-TrollStore-unsigned.ipa` artifact。
 
 ## 当前状态
 
-当前仅完成工程、网络层和 AVPlayer 播放器骨架。Spider、代理、FFmpeg、完整页面和数据迁移尚未完成，不能把当前骨架视为完整产品。
+已完成可安装的 iPhone/iPad 原生基础版本：AppleCMS 点播首页、搜索、详情、多线路选集、收藏、历史、M3U 直播、AVPlayer 硬件播放、倍速、AirPlay、后台音频和系统画中画。最低部署版本为 iOS 15.0。
+
+仍需后续原生移植的 Android 专属能力：Java Spider/JAR 兼容层、本地代理，以及用于 MP2/E-AC3/DTS/DTS-HD 软件音频解码的 FFmpeg XCFramework。当前 AVPlayer 能直接播放系统支持的 HLS/MP4 音视频格式。
