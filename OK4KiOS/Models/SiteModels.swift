@@ -32,13 +32,18 @@ struct TVBoxSite: Codable, Identifiable, Hashable, Sendable {
     var id: String { key.isEmpty ? name + api : key }
     var apiURL: URL? { URL(string: api.trimmingCharacters(in: .whitespacesAndNewlines)) }
     var nativeBaseURLs: [URL] { ext?.candidateURLs ?? [] }
+    var isFeatureCenter: Bool {
+        key.caseInsensitiveCompare("FishConfig") == .orderedSame
+            || api.caseInsensitiveCompare("csp_FishConfig") == .orderedSame
+    }
     var canRunNatively: Bool { type == 0 || type == 1 || (type == 3 && !nativeBaseURLs.isEmpty) }
     var kindLabel: String {
+        if isFeatureCenter { return "功能中心" }
         switch type {
         case 0: return "XML"
         case 1: return "JSON"
-        case 3: return nativeBaseURLs.isEmpty ? "Spider 网关" : "Spider 原生/网关"
-        case 4: return "规则网关"
+        case 3: return nativeBaseURLs.isEmpty ? "待原生移植 Spider" : "Spider 原生/网关"
+        case 4: return "待原生移植规则"
         default: return "Type \(type)"
         }
     }

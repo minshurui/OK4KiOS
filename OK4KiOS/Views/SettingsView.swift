@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var sites: [TVBoxSite] = []
     @State private var isLoading = false
     @State private var message: String?
+    @State private var showingFeatureCenter = false
 
     var body: some View {
         Form {
@@ -32,13 +33,17 @@ struct SettingsView: View {
                     .disabled(isLoading)
                 ForEach(sites) { site in
                     Button {
-                        settings.selectedSite = site
-                        if site.type == 0 || site.type == 1 { apiDraft = site.api; settings.vodAPI = site.api }
-                        message = "已启用：\(site.name)"
+                        if site.isFeatureCenter {
+                            showingFeatureCenter = true
+                        } else {
+                            settings.selectedSite = site
+                            if site.type == 0 || site.type == 1 { apiDraft = site.api; settings.vodAPI = site.api }
+                            message = "已启用：\(site.name)"
+                        }
                     } label: {
                         VStack(alignment: .leading) {
-                            Text((settings.selectedSite?.id == site.id ? "✓ " : "") + site.name)
-                            Text("\(site.kindLabel) · \(site.type == 3 ? (site.nativeBaseURLs.first?.host ?? "Android 执行") : site.api)")
+                            Text((settings.selectedSite?.id == site.id && !site.isFeatureCenter ? "✓ " : "") + site.name)
+                            Text(siteSubtitle(site))
                                 .font(.caption).foregroundColor(.secondary).lineLimit(1)
                         }
                     }
@@ -49,7 +54,7 @@ struct SettingsView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled(true)
                 Button("保存网关") { saveGateway() }
-                Text("带站点网址的 type 3 规则由 App 内置 Swift Spider 直接运行；加密 JAR 规则通过兼容网关调用同一套 home/category/detail/search/player 协议。")
+                Text("iPhone/iPad 优先运行原生 Spider 和规则适配；网关只是在个别尚未移植站点上的可选兼容方式。")
                     .font(.caption).foregroundColor(.secondary)
             }
             Section("播放器") {
@@ -80,9 +85,19 @@ struct SettingsView: View {
             gatewayDraft = settings.spiderGateway
             if sites.isEmpty { sites = settings.savedSites }
         }
+        .sheet(isPresented: $showingFeatureCenter) {
+            NavigationView { FishFeatureCenterView() }
+                .navigationViewStyle(.stack)
+        }
         .alert("设置", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
             Button("确定", role: .cancel) { message = nil }
         } message: { Text(message ?? "") }
+    }
+
+    private func siteSubtitle(_ site: TVBoxSite) -> String {
+        if site.isFeatureCenter { return "打开 iOS 功能中心（保留 FishConfig 入口）" }
+        if site.type == 3 { return "\(site.kindLabel) · \(site.nativeBaseURLs.first?.host ?? "原生移植中")" }
+        return "\(site.kindLabel) · \(site.api)"
     }
 
     private func saveAPI() {

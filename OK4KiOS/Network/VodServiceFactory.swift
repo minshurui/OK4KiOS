@@ -17,7 +17,7 @@ enum VodServiceFactory {
             return native
         }
         if let gateway { return gateway }
-        return UnavailableVodService(error: SpiderError.gatewayRequired(site.name))
+        return UnavailableVodService(error: SpiderError.nativeMigrationPending(site.name))
     }
 }
 
