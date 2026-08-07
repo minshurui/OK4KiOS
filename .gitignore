@@ -6,3 +6,4 @@ DerivedData/
 *.xcworkspace/
 Payload/
 *.ipa
+core.*
