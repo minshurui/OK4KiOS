@@ -1,0 +1,41 @@
+name: OK4KiOS
+options:
+  bundleIdPrefix: com.fongmi
+  deploymentTarget:
+    iOS: "15.0"
+configs:
+  Debug: debug
+  Release: release
+settings:
+  base:
+    SWIFT_VERSION: 5.9
+    TARGETED_DEVICE_FAMILY: "1,2"
+targets:
+  OK4KiOS:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: OK4KiOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fongmi.ok4k.ios
+        INFOPLIST_FILE: OK4KiOS/Resources/Info.plist
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+    scheme:
+      testTargets:
+        - OK4KiOSTests
+  OK4KiOSTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Tests
+    dependencies:
+      - target: OK4KiOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fongmi.ok4k.ios.tests
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO

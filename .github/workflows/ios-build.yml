@@ -1,0 +1,43 @@
+name: Build iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build unsigned device app
+        run: |
+          xcodebuild \
+            -project OK4KiOS.xcodeproj \
+            -scheme OK4KiOS \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+
+      - name: Package TrollStore IPA
+        run: |
+          chmod +x Scripts/package-unsigned-ipa.sh
+          Scripts/package-unsigned-ipa.sh \
+            build/DerivedData/Build/Products/Release-iphoneos/OK4KiOS.app \
+            OK4KiOS-TrollStore-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OK4KiOS-TrollStore-unsigned
+          path: OK4KiOS-TrollStore-unsigned.ipa

@@ -1,0 +1,7 @@
+services:
+  ios-dev:
+    build: .
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    command: sleep infinity
