@@ -12,6 +12,10 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(liveSource, forKey: Keys.liveSource) }
     }
 
+    @Published var configURL: String {
+        didSet { defaults.set(configURL, forKey: Keys.configURL) }
+    }
+
     var vodAPIURL: URL? {
         URL(string: vodAPI.trimmingCharacters(in: .whitespacesAndNewlines))
     }
@@ -21,6 +25,7 @@ final class AppSettings: ObservableObject {
     private enum Keys {
         static let vodAPI = "settings.vodAPI"
         static let liveSource = "settings.liveSource"
+        static let configURL = "settings.configURL"
     }
 
     private init(defaults: UserDefaults = .standard) {
@@ -28,10 +33,12 @@ final class AppSettings: ObservableObject {
         vodAPI = defaults.string(forKey: Keys.vodAPI)
             ?? "https://tv.789056.xyz/api.php/provide/vod/"
         liveSource = defaults.string(forKey: Keys.liveSource) ?? ""
+        configURL = defaults.string(forKey: Keys.configURL) ?? ""
     }
 
     func reset() {
         vodAPI = "https://tv.789056.xyz/api.php/provide/vod/"
         liveSource = ""
+        configURL = ""
     }
 }
