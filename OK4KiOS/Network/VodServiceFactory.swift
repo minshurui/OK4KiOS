@@ -9,6 +9,11 @@ enum VodServiceFactory {
         if site.type == 0 || site.type == 1 {
             return TVBoxAPIService(site: site)
         }
+        // Go engine (c-archive) handles wogg and type 4 rule sites when linked.
+        let isWogg = site.key.caseInsensitiveCompare("wogg") == .orderedSame || site.name.lowercased().contains("wogg")
+        if GoSpiderBridge.isAvailable, isWogg || site.type == 4 {
+            return GoSiteAdapter(site: site)
+        }
         let gateway = URL(string: settings.spiderGateway).flatMap {
             ["http", "https"].contains($0.scheme?.lowercased() ?? "") ? SpiderGatewayService(site: site, gatewayURL: $0) : nil
         }
