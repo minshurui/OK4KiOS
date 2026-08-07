@@ -8,6 +8,7 @@ protocol VodServiceProtocol {
     func search(_ keyword: String, page: Int) async throws -> VodResult
     func category(id: String, page: Int) async throws -> VodResult
     func detail(id: String) async throws -> Vod
+    func player(flag: String, id: String) async throws -> SpiderPlayback
 }
 
 struct VodService: VodServiceProtocol {
@@ -45,6 +46,10 @@ struct VodService: VodServiceProtocol {
         let result = try await request([URLQueryItem(name: "ac", value: "detail"), URLQueryItem(name: "ids", value: id)])
         guard let vod = result.list.first else { throw VodServiceError.emptyDetail }
         return vod
+    }
+
+    func player(flag: String, id: String) async throws -> SpiderPlayback {
+        SpiderPlayback(url: id)
     }
 
     private func request(_ queryItems: [URLQueryItem]) async throws -> VodResult {

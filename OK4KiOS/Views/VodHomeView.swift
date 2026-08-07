@@ -11,9 +11,7 @@ struct VodHomeView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
 
-    private var service: VodService {
-        VodService(baseURL: settings.vodAPIURL ?? VodService.defaultBaseURL)
-    }
+    private var service: VodServiceProtocol { VodServiceFactory.current(settings: settings) }
 
     var body: some View {
         List {
@@ -104,7 +102,7 @@ struct VodDetailView: View {
 
     init(vod: Vod, service: VodServiceProtocol? = nil) {
         self.vod = vod
-        self.service = service ?? VodService(baseURL: AppSettings.shared.vodAPIURL ?? VodService.defaultBaseURL)
+        self.service = service ?? VodServiceFactory.current()
         _detail = State(initialValue: vod)
     }
 
@@ -124,8 +122,11 @@ struct VodDetailView: View {
                     Picker("线路", selection: $selectedFlag) {
                         ForEach(Array(detail.flags.enumerated()), id: \.offset) { index, flag in Text(flag.name).tag(index) }
                     }.pickerStyle(.segmented)
-                    ForEach(detail.flags[min(max(selectedFlag, 0), detail.flags.count - 1)].episodes) { episode in
-                        NavigationLink(episode.name) { PlayerView(urlString: episode.url, vod: detail, episodeName: episode.name) }
+                    let flag = detail.flags[min(max(selectedFlag, 0), detail.flags.count - 1)]
+                    ForEach(flag.episodes) { episode in
+                        NavigationLink(episode.name) {
+                            ResolvingPlayerView(service: service, flag: flag.name, episode: episode, vod: detail)
+                        }
                     }
                 }
             }.padding()

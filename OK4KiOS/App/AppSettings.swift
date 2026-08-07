@@ -20,6 +20,17 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(preferFFmpeg, forKey: Keys.preferFFmpeg) }
     }
 
+    @Published var selectedSite: TVBoxSite? {
+        didSet {
+            if let selectedSite, let data = try? JSONEncoder().encode(selectedSite) { defaults.set(data, forKey: Keys.selectedSite) }
+            else { defaults.removeObject(forKey: Keys.selectedSite) }
+        }
+    }
+
+    @Published var spiderGateway: String {
+        didSet { defaults.set(spiderGateway, forKey: Keys.spiderGateway) }
+    }
+
     var vodAPIURL: URL? {
         URL(string: vodAPI.trimmingCharacters(in: .whitespacesAndNewlines))
     }
@@ -31,6 +42,8 @@ final class AppSettings: ObservableObject {
         static let liveSource = "settings.liveSource"
         static let configURL = "settings.configURL"
         static let preferFFmpeg = "settings.preferFFmpeg"
+        static let selectedSite = "settings.selectedSite"
+        static let spiderGateway = "settings.spiderGateway"
     }
 
     private init(defaults: UserDefaults = .standard) {
@@ -40,6 +53,8 @@ final class AppSettings: ObservableObject {
         liveSource = defaults.string(forKey: Keys.liveSource) ?? ""
         configURL = defaults.string(forKey: Keys.configURL) ?? ""
         preferFFmpeg = defaults.bool(forKey: Keys.preferFFmpeg)
+        selectedSite = defaults.data(forKey: Keys.selectedSite).flatMap { try? JSONDecoder().decode(TVBoxSite.self, from: $0) }
+        spiderGateway = defaults.string(forKey: Keys.spiderGateway) ?? ""
     }
 
     func reset() {
@@ -47,5 +62,7 @@ final class AppSettings: ObservableObject {
         liveSource = ""
         configURL = ""
         preferFFmpeg = false
+        selectedSite = nil
+        spiderGateway = ""
     }
 }

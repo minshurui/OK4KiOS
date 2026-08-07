@@ -16,6 +16,9 @@ packages:
   KSPlayer:
     url: https://github.com/kingslay/KSPlayer.git
     exactVersion: 2.3.4
+  SwiftSoup:
+    url: https://github.com/scinfu/SwiftSoup.git
+    exactVersion: 2.7.6
 targets:
   OK4KiOS:
     type: application
@@ -25,14 +28,15 @@ targets:
       - path: OK4KiOS
     dependencies:
       - package: KSPlayer
+      - package: SwiftSoup
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.fongmi.ok4k.ios
         INFOPLIST_FILE: OK4KiOS/Resources/Info.plist
         CODE_SIGNING_ALLOWED: NO
         CODE_SIGNING_REQUIRED: NO
-        MARKETING_VERSION: 0.3.1
-        CURRENT_PROJECT_VERSION: 6
+        MARKETING_VERSION: 0.4.0
+        CURRENT_PROJECT_VERSION: 7
     scheme:
       testTargets:
         - OK4KiOSTests

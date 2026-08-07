@@ -1,17 +1,19 @@
 import Foundation
 
 struct TVBoxConfig: Decodable {
+    let spider: String
     let sites: [TVBoxSite]
 
-    enum CodingKeys: String, CodingKey { case sites }
+    enum CodingKeys: String, CodingKey { case spider, sites }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        spider = (try? container.decode(String.self, forKey: .spider)) ?? ""
         sites = (try? container.decode([TVBoxSite].self, forKey: .sites)) ?? []
     }
 }
 
-struct TVBoxSite: Decodable, Identifiable, Hashable {
+struct TVBoxSite: Codable, Identifiable, Hashable, Sendable {
     let key: String
     let name: String
     let type: Int
@@ -19,12 +21,15 @@ struct TVBoxSite: Decodable, Identifiable, Hashable {
     let searchable: Bool
     let quickSearch: Bool
     let filterable: Bool
+    let ext: JSONValue?
 
     var id: String { key.isEmpty ? name + api : key }
     var apiURL: URL? { URL(string: api.trimmingCharacters(in: .whitespacesAndNewlines)) }
+    var nativeBaseURLs: [URL] { ext?.candidateURLs ?? [] }
+    var canRunNatively: Bool { type == 0 || type == 1 || (type == 3 && !nativeBaseURLs.isEmpty) }
 
     enum CodingKeys: String, CodingKey {
-        case key, name, type, api, searchable, quickSearch = "quickSearch", filterable
+        case key, name, type, api, searchable, quickSearch = "quickSearch", filterable, ext
     }
 
     init(from decoder: Decoder) throws {
@@ -36,6 +41,7 @@ struct TVBoxSite: Decodable, Identifiable, Hashable {
         searchable = Self.bool(container, .searchable, default: true)
         quickSearch = Self.bool(container, .quickSearch, default: true)
         filterable = Self.bool(container, .filterable, default: false)
+        ext = try? container.decode(JSONValue.self, forKey: .ext)
     }
 
     private static func bool(_ container: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys, default fallback: Bool) -> Bool {
