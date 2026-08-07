@@ -120,11 +120,19 @@ struct SettingsView: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            let loaded = try await ConfigService().load(urlString: value)
+            let service = ConfigService()
+            let loaded = try await service.load(urlString: value)
             settings.configURL = value
             sites = loaded
             settings.savedSites = loaded
-            message = loaded.isEmpty ? "配置中没有可用站点" : "已导入 \(loaded.count) 个接口（XML、JSON、Spider、规则接口），请点击一个启用"
+            let lives = try await service.loadLives(urlString: value)
+            if !lives.isEmpty {
+                var merged = settings.liveSources
+                for url in lives.values where !merged.contains(url) { merged.insert(url, at: 0) }
+                settings.liveSources = Array(merged.prefix(20))
+                if settings.liveSource.isEmpty { settings.liveSource = lives.values.first ?? "" }
+            }
+            message = loaded.isEmpty ? "已导入配置（含 \(lives.count) 个直播源），没有可用站点" : "已导入 \(loaded.count) 个接口、\(lives.count) 个直播源，请点击一个启用"
         } catch {
             message = "配置导入失败：\(error.localizedDescription)"
         }

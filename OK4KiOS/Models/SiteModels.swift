@@ -3,17 +3,38 @@ import Foundation
 struct TVBoxConfig: Decodable {
     let spider: String
     let sites: [TVBoxSite]
+    let lives: [TVBoxLive]
 
-    enum CodingKeys: String, CodingKey { case spider, sites }
+    enum CodingKeys: String, CodingKey { case spider, sites, lives }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         spider = (try? container.decode(String.self, forKey: .spider)) ?? ""
+        lives = (try? container.decode([TVBoxLive].self, forKey: .lives)) ?? []
         var decodedSites = (try? container.decode([TVBoxSite].self, forKey: .sites)) ?? []
         for index in decodedSites.indices where decodedSites[index].jar.isEmpty {
             decodedSites[index].jar = spider
         }
         sites = decodedSites
+    }
+}
+
+struct TVBoxLive: Decodable {
+    let name: String?
+    let type: Int?
+    let url: String?
+    let ua: String?
+    let epg: String?
+
+    enum CodingKeys: String, CodingKey { case name, type, url, ua, epg }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try? container.decode(String.self, forKey: .name)
+        type = try? container.decode(Int.self, forKey: .type)
+        url = try? container.decode(String.self, forKey: .url)
+        ua = try? container.decode(String.self, forKey: .ua)
+        epg = try? container.decode(String.self, forKey: .epg)
     }
 }
 

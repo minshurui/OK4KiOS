@@ -6,31 +6,35 @@ struct PlayerView: View {
     let headers: [String: String]
     let vod: Vod?
     let episodeName: String?
-    let forceSystemPlayer: Bool
+    let isLive: Bool
     let onClose: (() -> Void)?
     @StateObject private var model: PlayerViewModel
     @State private var useFFmpeg: Bool
+    @State private var fallbackAttempts = 0
 
-    init(urlString: String, headers: [String: String] = [:], vod: Vod? = nil, episodeName: String? = nil, forceSystemPlayer: Bool = false, onClose: (() -> Void)? = nil) {
+    init(urlString: String, headers: [String: String] = [:], vod: Vod? = nil, episodeName: String? = nil, isLive: Bool = false, onClose: (() -> Void)? = nil) {
         let request = PlaybackRequest.parse(urlString, additionalHeaders: headers)
         let remoteURL = URL(string: request.urlString)
-        let needsProxy = !request.headers.isEmpty && remoteURL?.pathExtension.lowercased() == "m3u8"
+        let isHLS = remoteURL?.pathExtension.lowercased() == "m3u8" || request.urlString.lowercased().contains(".m3u8")
+        let needsProxy = isLive && !request.headers.isEmpty && isHLS
         let effectiveURL = needsProxy ? (remoteURL.flatMap { LocalProxyServer.shared.url(for: $0, headers: request.headers) }?.absoluteString ?? request.urlString) : request.urlString
         self.urlString = effectiveURL
         self.headers = needsProxy ? [:] : request.headers
         self.vod = vod
         self.episodeName = episodeName
-        self.forceSystemPlayer = forceSystemPlayer
+        self.isLive = isLive
         self.onClose = onClose
-        _model = StateObject(wrappedValue: PlayerViewModel(urlString: effectiveURL, headers: needsProxy ? [:] : request.headers, vod: vod, episodeName: episodeName, isLive: forceSystemPlayer))
-        _useFFmpeg = State(initialValue: forceSystemPlayer ? false : AppSettings.shared.preferFFmpeg)
+        _model = StateObject(wrappedValue: PlayerViewModel(urlString: effectiveURL, headers: needsProxy ? [:] : request.headers, vod: vod, episodeName: episodeName, isLive: isLive))
+        _useFFmpeg = State(initialValue: isLive ? false : AppSettings.shared.preferFFmpeg)
     }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             Group {
-                if useFFmpeg && !forceSystemPlayer {
-                    FFmpegPlayerView(urlString: urlString, headers: headers) { current, total in
+                if useFFmpeg {
+                    FFmpegPlayerView(urlString: urlString, headers: headers, onError: {
+                        fallbackToSystem()
+                    }) { current, total in
                         model.reportProgress(position: current, duration: total)
                     }
                 } else {
@@ -58,7 +62,7 @@ struct PlayerView: View {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 Button {
                     useFFmpeg.toggle()
-                    AppSettings.shared.preferFFmpeg = useFFmpeg
+                    if !isLive { AppSettings.shared.preferFFmpeg = useFFmpeg }
                     if useFFmpeg { model.pause() } else { model.play() }
                 } label: {
                     Image(systemName: useFFmpeg ? "waveform.badge.plus" : "play.rectangle")
@@ -73,12 +77,28 @@ struct PlayerView: View {
         }
         .onAppear {
             AudioSessionController.shared.activate()
-            if !useFFmpeg || forceSystemPlayer { model.play() }
+            if !useFFmpeg { model.play() }
         }
         .onDisappear { model.pause() }
+        .onChange(of: model.didFail) { failed in
+            guard failed, !useFFmpeg else { return }
+            if fallbackAttempts == 0 {
+                fallbackAttempts += 1
+                useFFmpeg = true
+            } else {
+                model.errorMessage = "播放失败：系统与 FFmpeg 引擎均无法播放此流"
+            }
+        }
         .alert("播放失败", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
             Button("确定", role: .cancel) { model.errorMessage = nil }
         } message: { Text(model.errorMessage ?? "") }
+    }
+
+    private func fallbackToSystem() {
+        guard useFFmpeg else { return }
+        fallbackAttempts += 1
+        useFFmpeg = false
+        model.errorMessage = "播放失败：FFmpeg 与系统引擎均无法播放此流"
     }
 
     private func rateLabel(_ rate: Float) -> String {
@@ -122,12 +142,14 @@ final class PlayerViewModel: ObservableObject, @unchecked Sendable {
     let player = AVPlayer()
     @Published var errorMessage: String?
     @Published private(set) var rate: Float = 1
+    @Published private(set) var didFail = false
     private let urlString: String
     private let vod: Vod?
     private let episodeName: String?
     private let isLive: Bool
     private var timeObserver: Any?
     private var observers: [NSObjectProtocol] = []
+    private var statusObserver: NSKeyValueObservation?
 
     init(urlString: String, headers: [String: String] = [:], vod: Vod? = nil, episodeName: String? = nil, isLive: Bool = false) {
         self.urlString = urlString
@@ -152,6 +174,7 @@ final class PlayerViewModel: ObservableObject, @unchecked Sendable {
 
     deinit {
         if let timeObserver { player.removeTimeObserver(timeObserver) }
+        statusObserver?.invalidate()
         observers.forEach(NotificationCenter.default.removeObserver)
     }
 
@@ -182,13 +205,24 @@ final class PlayerViewModel: ObservableObject, @unchecked Sendable {
         })
         #endif
         if let item = player.currentItem {
+            statusObserver = item.observe(\.status, options: [.new]) { [weak self] item, _ in
+                guard let self, item.status == .failed else { return }
+                self.didFail = true
+                if !self.isLive {
+                    self.errorMessage = item.error?.localizedDescription ?? "播放失败"
+                }
+            }
+            observers.append(NotificationCenter.default.addObserver(forName: .AVPlayerItemFailedToPlayToEndTime, object: item, queue: .main) { [weak self] note in
+                guard let self else { return }
+                self.didFail = true
+                if !self.isLive {
+                    self.errorMessage = (note.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error)?.localizedDescription ?? "直播流中断"
+                }
+            })
             observers.append(NotificationCenter.default.addObserver(forName: .AVPlayerItemPlaybackStalled, object: item, queue: .main) { [weak self] _ in
                 guard let self else { return }
                 AudioSessionController.shared.activate()
                 if self.isLive { self.player.play() }
-            })
-            observers.append(NotificationCenter.default.addObserver(forName: .AVPlayerItemFailedToPlayToEndTime, object: item, queue: .main) { [weak self] note in
-                self?.errorMessage = (note.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error)?.localizedDescription ?? "直播流中断"
             })
         }
     }

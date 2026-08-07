@@ -12,6 +12,12 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(liveSource, forKey: Keys.liveSource) }
     }
 
+    @Published var liveSources: [String] {
+        didSet {
+            if let data = try? JSONEncoder().encode(liveSources) { defaults.set(data, forKey: Keys.liveSources) }
+        }
+    }
+
     @Published var vodAPIType: Int {
         didSet { defaults.set(vodAPIType, forKey: Keys.vodAPIType) }
     }
@@ -50,6 +56,7 @@ final class AppSettings: ObservableObject {
     private enum Keys {
         static let vodAPI = "settings.vodAPI"
         static let liveSource = "settings.liveSource"
+        static let liveSources = "settings.liveSources"
         static let vodAPIType = "settings.vodAPIType"
         static let configURL = "settings.configURL"
         static let preferFFmpeg = "settings.preferFFmpeg"
@@ -63,6 +70,7 @@ final class AppSettings: ObservableObject {
         vodAPI = defaults.string(forKey: Keys.vodAPI)
             ?? "https://tv.789056.xyz/api.php/provide/vod/"
         liveSource = defaults.string(forKey: Keys.liveSource) ?? ""
+        liveSources = defaults.data(forKey: Keys.liveSources).flatMap { try? JSONDecoder().decode([String].self, from: $0) } ?? []
         vodAPIType = defaults.object(forKey: Keys.vodAPIType) == nil ? 1 : defaults.integer(forKey: Keys.vodAPIType)
         configURL = defaults.string(forKey: Keys.configURL) ?? "https://tv.789056.xyz/tvbox.json"
         preferFFmpeg = defaults.bool(forKey: Keys.preferFFmpeg)
@@ -78,6 +86,7 @@ final class AppSettings: ObservableObject {
     func reset() {
         vodAPI = "https://tv.789056.xyz/api.php/provide/vod/"
         liveSource = ""
+        liveSources = []
         vodAPIType = 1
         configURL = "https://tv.789056.xyz/tvbox.json"
         preferFFmpeg = false
