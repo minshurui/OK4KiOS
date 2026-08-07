@@ -35,6 +35,7 @@ enum GoSpiderBridge {
     static func search(siteJSON: String) throws -> Data { try call("ok4k_search", siteJSON: siteJSON) }
     static func detail(siteJSON: String) throws -> Data { try call("ok4k_detail", siteJSON: siteJSON) }
     static func play(siteJSON: String) throws -> Data { try call("ok4k_play", siteJSON: siteJSON) }
+    static func decryptExt(_ encoded: String) throws -> Data { try call("ok4k_ext_decrypt", siteJSON: encoded) }
 
     // MARK: - Private
 

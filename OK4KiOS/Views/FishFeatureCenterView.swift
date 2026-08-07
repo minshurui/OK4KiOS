@@ -15,6 +15,21 @@ struct FishFeatureCenterView: View {
 
     var body: some View {
         Form {
+            Section("FishConfig 原生设置") {
+                ForEach(FishConfigSection.allCases) { section in
+                    NavigationLink(destination: FishConfigSectionView(section: section)) {
+                        HStack {
+                            Text(section.title)
+                            Spacer()
+                            Text("\(FishConfigCatalog.actions(for: section).count) 项")
+                                .font(.caption).foregroundColor(.secondary)
+                        }
+                    }
+                }
+                Text("按 Android FishConfig 的栏目和 action 原生移植；账号凭据保存在 Keychain，不依赖局域网或 Android Gateway。")
+                    .font(.caption).foregroundColor(.secondary)
+            }
+
             Section("点播接口") {
                 Picker("接口格式", selection: $settings.vodAPIType) {
                     Text("JSON · type 1").tag(1)

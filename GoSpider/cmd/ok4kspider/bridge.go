@@ -17,6 +17,7 @@ import (
 	"unsafe"
 
 	"ok4kspider/pkg/engine"
+	"ok4kspider/pkg/fishguard"
 	"ok4kspider/pkg/sites/wogg"
 )
 
@@ -105,6 +106,21 @@ func ok4k_play(siteJSON *C.char) *C.char {
 		return engineFor(req).Play(req.Params["flag"], req.Params["id"])
 	}, siteJSON)
 	return cString(out)
+}
+
+//export ok4k_ext_decrypt
+func ok4k_ext_decrypt(encoded *C.char) *C.char {
+	plain, err := fishguard.DecryptExt(C.GoString(encoded))
+	if err != nil {
+		data, _ := json.Marshal(map[string]string{"error": err.Error()})
+		return cString(string(data))
+	}
+	// JSON ext values are returned as-is so Swift can decode their native shape.
+	if json.Valid(plain) {
+		return cString(string(plain))
+	}
+	data, _ := json.Marshal(map[string]string{"value": string(plain)})
+	return cString(string(data))
 }
 
 //export ok4k_js_sign

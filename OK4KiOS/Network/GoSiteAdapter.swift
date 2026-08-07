@@ -55,12 +55,7 @@ struct GoSiteAdapter: VodServiceProtocol {
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
-                    let data: Data
-                    if isWogg {
-                        data = try GoSpiderBridge.home(siteJSON: request)
-                    } else {
-                        data = try invoke(params: params, siteJSON: request)
-                    }
+                    let data = try invoke(params: params, siteJSON: request)
                     continuation.resume(returning: data)
                 } catch {
                     continuation.resume(throwing: error)
