@@ -8,10 +8,14 @@ enum VodServiceFactory {
         if site.type == 0 || site.type == 1 {
             return VodService(baseURL: site.apiURL ?? settings.vodAPIURL ?? VodService.defaultBaseURL)
         }
-        if let service = try? NativeSpiderService(site: site) { return service }
-        if let gateway = URL(string: settings.spiderGateway), ["http", "https"].contains(gateway.scheme?.lowercased() ?? "") {
-            return SpiderGatewayService(site: site, gatewayURL: gateway)
+        let gateway = URL(string: settings.spiderGateway).flatMap {
+            ["http", "https"].contains($0.scheme?.lowercased() ?? "") ? SpiderGatewayService(site: site, gatewayURL: $0) : nil
         }
+        if let native = try? NativeSpiderService(site: site) {
+            if let gateway { return FallbackVodService(primary: native, fallback: gateway) }
+            return native
+        }
+        if let gateway { return gateway }
         return UnavailableVodService(error: SpiderError.gatewayRequired(site.name))
     }
 }
