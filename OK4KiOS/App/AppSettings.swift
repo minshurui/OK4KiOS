@@ -1,7 +1,6 @@
 import Combine
 import Foundation
 
-@MainActor
 final class AppSettings: ObservableObject {
     static let shared = AppSettings()
 

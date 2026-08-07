@@ -62,15 +62,16 @@ struct Vod: Codable, Identifiable, Hashable, Sendable {
     var content: String { (vodContent?.value ?? "").replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression) }
 
     var flags: [PlayFlag] {
-        let names = (vodPlayFrom?.value ?? "").split(separator: "$$$").map(String.init)
-        let groups = (vodPlayURL?.value ?? "").split(separator: "$$$").map(String.init)
+        let names = (vodPlayFrom?.value ?? "").components(separatedBy: "$$$").filter { !$0.isEmpty }
+        let groups = (vodPlayURL?.value ?? "").components(separatedBy: "$$$").filter { !$0.isEmpty }
         return groups.enumerated().compactMap { index, value in
-            let episodes = value.split(separator: "#", omittingEmptySubsequences: true).enumerated().compactMap { episodeIndex, part -> Episode? in
-                let fields = part.split(separator: "$", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
-                let rawURL = (fields.count > 1 ? fields[1] : fields[0]).trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !rawURL.isEmpty else { return nil }
-                let rawName = fields.count > 1 ? fields[0].trimmingCharacters(in: .whitespacesAndNewlines) : ""
-                return Episode(name: rawName.isEmpty ? "第\(episodeIndex + 1)集" : rawName, url: rawURL)
+            let episodes = value.components(separatedBy: "#").filter { !$0.isEmpty }.enumerated().compactMap { episodeIndex, part -> Episode? in
+                let separator = part.firstIndex(of: "$")
+                let rawName = separator.map { String(part[..<$0]).trimmingCharacters(in: .whitespacesAndNewlines) } ?? ""
+                let rawURL = separator.map { String(part[part.index(after: $0)...]) } ?? part
+                let trimmedURL = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmedURL.isEmpty else { return nil }
+                return Episode(name: rawName.isEmpty ? "第\(episodeIndex + 1)集" : rawName, url: trimmedURL)
             }
             guard !episodes.isEmpty else { return nil }
             let name = index < names.count && !names[index].isEmpty ? names[index] : "线路\(index + 1)"
