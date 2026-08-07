@@ -14,11 +14,21 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Inspect Apple build tools
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcodegen version
+
       - name: Generate Xcode project
-        run: xcodegen generate
+        run: |
+          set -euo pipefail
+          xcodegen generate
+          test -d OK4KiOS.xcodeproj
 
       - name: Build unsigned device app
         run: |
+          set -o pipefail
           xcodebuild \
             -project OK4KiOS.xcodeproj \
             -scheme OK4KiOS \
@@ -28,7 +38,8 @@ jobs:
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            build
+            SWIFT_VERSION=5.9 \
+            build | tee xcodebuild.log
 
       - name: Package TrollStore IPA
         run: |

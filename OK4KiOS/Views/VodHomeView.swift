@@ -95,8 +95,11 @@ struct VodDetailView: View {
         .task {
             guard !vod.id.isEmpty else { return }
             do {
-                detail = try await service.detail(id: vod.id)
-                selectedFlag = 0
+                let loaded = try await service.detail(id: vod.id)
+                await MainActor.run {
+                    detail = loaded
+                    selectedFlag = 0
+                }
             } catch {
                 loadError = error.localizedDescription
             }
