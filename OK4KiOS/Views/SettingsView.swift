@@ -34,6 +34,12 @@ struct SettingsView: View {
                     }
                 }
             }
+            Section("播放器") {
+                Toggle("默认使用 FFmpeg 引擎", isOn: $settings.preferFFmpeg)
+                Text("FFmpeg 适用于 MP2、AC3、E-AC3、DTS/DTS-HD；系统引擎功耗更低并支持原生画中画。")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
             Section {
                 Button("恢复默认", role: .destructive) {
                     settings.reset()

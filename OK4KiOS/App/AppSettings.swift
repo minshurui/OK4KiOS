@@ -16,6 +16,10 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(configURL, forKey: Keys.configURL) }
     }
 
+    @Published var preferFFmpeg: Bool {
+        didSet { defaults.set(preferFFmpeg, forKey: Keys.preferFFmpeg) }
+    }
+
     var vodAPIURL: URL? {
         URL(string: vodAPI.trimmingCharacters(in: .whitespacesAndNewlines))
     }
@@ -26,6 +30,7 @@ final class AppSettings: ObservableObject {
         static let vodAPI = "settings.vodAPI"
         static let liveSource = "settings.liveSource"
         static let configURL = "settings.configURL"
+        static let preferFFmpeg = "settings.preferFFmpeg"
     }
 
     private init(defaults: UserDefaults = .standard) {
@@ -34,11 +39,13 @@ final class AppSettings: ObservableObject {
             ?? "https://tv.789056.xyz/api.php/provide/vod/"
         liveSource = defaults.string(forKey: Keys.liveSource) ?? ""
         configURL = defaults.string(forKey: Keys.configURL) ?? ""
+        preferFFmpeg = defaults.bool(forKey: Keys.preferFFmpeg)
     }
 
     func reset() {
         vodAPI = "https://tv.789056.xyz/api.php/provide/vod/"
         liveSource = ""
         configURL = ""
+        preferFFmpeg = false
     }
 }

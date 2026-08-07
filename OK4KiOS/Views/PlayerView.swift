@@ -16,6 +16,7 @@ struct PlayerView: View {
         self.vod = vod
         self.episodeName = episodeName
         _model = StateObject(wrappedValue: PlayerViewModel(urlString: request.urlString, headers: request.headers, vod: vod, episodeName: episodeName))
+        _useFFmpeg = State(initialValue: AppSettings.shared.preferFFmpeg)
     }
 
     var body: some View {
@@ -34,6 +35,7 @@ struct PlayerView: View {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     Button {
                         useFFmpeg.toggle()
+                        AppSettings.shared.preferFFmpeg = useFFmpeg
                         if useFFmpeg { model.pause() } else { model.play() }
                     } label: {
                         Image(systemName: useFFmpeg ? "waveform.badge.plus" : "play.rectangle")

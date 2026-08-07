@@ -41,6 +41,19 @@ jobs:
             SWIFT_VERSION=5.9 \
             build | tee xcodebuild.log
 
+      - name: Run iOS unit tests
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project OK4KiOS.xcodeproj \
+            -scheme OK4KiOS \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 15,OS=17.5' \
+            -derivedDataPath build/TestDerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            test | tee xcodebuild-tests.log
+
       - name: Package TrollStore IPA
         run: |
           chmod +x Scripts/package-unsigned-ipa.sh
