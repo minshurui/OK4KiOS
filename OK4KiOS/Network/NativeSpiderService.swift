@@ -176,12 +176,16 @@ struct NativeSpiderService: VodServiceProtocol {
     private func isMediaURL(_ url: URL) -> Bool { isMediaString(url.absoluteString) }
 
     private func firstText(_ element: Element, selectors: [String], fallback: String) -> String {
-        for selector in selectors { if let value = try? element.select(selector).first()?.text(), let value, !value.isEmpty { return value } }
+        for selector in selectors {
+            if let node = try? element.select(selector).first(), let value = try? node.text(), !value.isEmpty { return value }
+        }
         return fallback
     }
 
     private func firstAttribute(_ element: Element, selectors: [String], attributes: [String]) -> String {
-        for selector in selectors { if let node = try? element.select(selector).first(), let node, let value = try? firstNonemptyAttribute(node, attributes), !value.isEmpty { return value } }
+        for selector in selectors {
+            if let node = try? element.select(selector).first(), let value = try? firstNonemptyAttribute(node, attributes), !value.isEmpty { return value }
+        }
         return ""
     }
 
