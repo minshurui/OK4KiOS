@@ -41,9 +41,9 @@ targets:
         CODE_SIGNING_REQUIRED: NO
         MARKETING_VERSION: 0.5.0
         CURRENT_PROJECT_VERSION: 8
-        OTHER_LDFLAGS: "$(inherited) -lok4kspider"
-        LIBRARY_SEARCH_PATHS: "$(inherited) $(SRCROOT)/GoSpider/lib"
-        HEADER_SEARCH_PATHS: "$(inherited) $(SRCROOT)/GoSpider/lib"
+        OTHER_LDFLAGS[sdk=iphoneos*]: "$(inherited) -lok4kspider"
+        LIBRARY_SEARCH_PATHS[sdk=iphoneos*]: "$(inherited) $(SRCROOT)/GoSpider/lib"
+        HEADER_SEARCH_PATHS[sdk=iphoneos*]: "$(inherited) $(SRCROOT)/GoSpider/lib"
     scheme:
       testTargets:
         - OK4KiOSTests
