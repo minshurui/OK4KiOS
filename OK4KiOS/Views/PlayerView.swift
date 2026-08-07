@@ -69,7 +69,7 @@ struct PlayerControllerView: View {
 #endif
 
 @MainActor
-final class PlayerViewModel: ObservableObject {
+final class PlayerViewModel: ObservableObject, @unchecked Sendable {
     static let supportedRates: [Float] = [0.5, 1, 1.25, 1.5, 2]
 
     let player = AVPlayer()
@@ -94,7 +94,7 @@ final class PlayerViewModel: ObservableObject {
             player.seek(to: CMTime(seconds: position, preferredTimescale: 600))
         }
         timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 10, preferredTimescale: 1), queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.saveProgress() }
+            self?.saveProgress()
         }
     }
 
