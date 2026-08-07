@@ -96,7 +96,7 @@ struct SettingsView: View {
 
     private func siteSubtitle(_ site: TVBoxSite) -> String {
         if site.isFeatureCenter { return "打开 iOS 功能中心（保留 FishConfig 入口）" }
-        if site.type == 3 { return "\(site.kindLabel) · \(site.nativeBaseURLs.first?.host ?? "原生移植中")" }
+        if site.type == 3 { return "\(site.kindLabel) · \(site.nativeBaseURLs.first?.host ?? "需兼容执行")" }
         return "\(site.kindLabel) · \(site.api)"
     }
 

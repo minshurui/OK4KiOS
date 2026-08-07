@@ -52,14 +52,6 @@ struct FishFeatureCenterView: View {
                     .font(.caption).foregroundColor(.secondary)
             }
 
-            Section("FishConfig 原生移植") {
-                migration("账号与网盘管理")
-                migration("海报与首页布局设置")
-                migration("解析与播放规则设置")
-                migration("站点状态及缓存工具")
-                Text("这些入口没有删除。依赖 Android UI、存储和 FishGuard 的 action 正在按功能逐项改写为 Swift。")
-                    .font(.caption).foregroundColor(.secondary)
-            }
         }
         .navigationTitle("设置中心")
         .toolbar {
@@ -115,11 +107,4 @@ struct FishFeatureCenterView: View {
         .padding(.vertical, 2)
     }
 
-    private func migration(_ title: String) -> some View {
-        HStack {
-            Text(title)
-            Spacer()
-            Text("移植中").font(.caption).foregroundColor(.orange)
-        }
-    }
 }
