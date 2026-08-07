@@ -31,6 +31,8 @@ GitHub Actions 会生成 `OK4KiOS-TrollStore-unsigned.ipa` artifact。
 
 ## 当前状态
 
-已完成可安装的 iPhone/iPad 原生基础版本：AppleCMS 点播首页、搜索、详情、多线路选集、收藏、历史、M3U 直播、AVPlayer 硬件播放、倍速、AirPlay、后台音频和系统画中画。最低部署版本为 iOS 15.0。
+已完成可安装的 iPhone/iPad 原生版本：AppleCMS 点播首页、分类、分页、搜索、详情、多线路选集、TVBox 配置导入、收藏、历史、断点续播、M3U 直播、AVPlayer 硬件播放、倍速、AirPlay、后台音频和系统画中画。最低部署版本为 iOS 15.0。
 
-仍需后续原生移植的 Android 专属能力：Java Spider/JAR 兼容层、本地代理，以及用于 MP2/E-AC3/DTS/DTS-HD 软件音频解码的 FFmpeg XCFramework。当前 AVPlayer 能直接播放系统支持的 HLS/MP4 音视频格式。
+播放器提供系统 AVPlayer 与 KSPlayer/FFmpeg 双引擎切换。默认 AVPlayer 保持系统硬件解码和最低功耗；遇到 MP2、AC3、E-AC3、DTS/DTS-HD 等系统不支持的音轨时，可在播放页右上角切换 FFmpeg 引擎，KSPlayer 会继续使用 VideoToolbox 硬件视频解码并由 FFmpeg 处理音频。
+
+Android 的 Java Spider/JAR 和 FishGuard Android `.so` 无法直接运行于 iOS；当前配置导入仅启用可直接访问的 AppleCMS type 0/1 接口。

@@ -7,6 +7,7 @@ struct PlayerView: View {
     let vod: Vod?
     let episodeName: String?
     @StateObject private var model: PlayerViewModel
+    @State private var useFFmpeg = false
 
     init(urlString: String, headers: [String: String] = [:], vod: Vod? = nil, episodeName: String? = nil) {
         let request = PlaybackRequest.parse(urlString, additionalHeaders: headers)
@@ -18,11 +19,26 @@ struct PlayerView: View {
     }
 
     var body: some View {
-        PlayerControllerView(player: model.player)
+        Group {
+            if useFFmpeg {
+                FFmpegPlayerView(urlString: urlString, headers: headers) { current, total in
+                    model.reportProgress(position: current, duration: total)
+                }
+            } else {
+                PlayerControllerView(player: model.player)
+            }
+        }
             .ignoresSafeArea()
             .navigationTitle(episodeName ?? vod?.name ?? "播放")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                    Button {
+                        useFFmpeg.toggle()
+                        if useFFmpeg { model.pause() } else { model.play() }
+                    } label: {
+                        Image(systemName: useFFmpeg ? "waveform.badge.plus" : "play.rectangle")
+                    }
+                    .accessibilityLabel(useFFmpeg ? "切换系统播放器" : "切换 FFmpeg 播放器")
                     Menu {
                         ForEach(PlayerViewModel.supportedRates, id: \.self) { rate in
                             Button(rateLabel(rate)) { model.setRate(rate) }
@@ -30,7 +46,7 @@ struct PlayerView: View {
                     } label: { Image(systemName: "speedometer") }
                 }
             }
-            .onAppear { model.play() }
+            .onAppear { if !useFFmpeg { model.play() } }
             .onDisappear { model.pause() }
             .alert("播放失败", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
                 Button("确定", role: .cancel) { model.errorMessage = nil }
@@ -115,10 +131,11 @@ final class PlayerViewModel: ObservableObject, @unchecked Sendable {
     }
 
     private func saveProgress() {
-        guard let vod, let episodeName else { return }
-        let position = player.currentTime().seconds
-        let duration = player.currentItem?.duration.seconds ?? 0
-        guard position.isFinite, position >= 0 else { return }
+        reportProgress(position: player.currentTime().seconds, duration: player.currentItem?.duration.seconds ?? 0)
+    }
+
+    func reportProgress(position: Double, duration: Double) {
+        guard let vod, let episodeName, position.isFinite, position >= 0 else { return }
         LibraryStore.shared.record(vod, episode: Episode(name: episodeName, url: urlString), position: position, duration: duration.isFinite ? duration : nil)
     }
 
