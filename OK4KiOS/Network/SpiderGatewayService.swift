@@ -35,9 +35,9 @@ struct SpiderGatewayService: VodServiceProtocol {
     func player(flag: String, id: String) async throws -> SpiderPlayback {
         let data = try await call(operation: "player", payload: ["flag": flag, "id": id])
         let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        guard let url = object?["url"] as? String, !url.isEmpty else { throw SpiderError.noPlayableURL }
+        guard let rawURL = object?["url"] as? String, !rawURL.isEmpty else { throw SpiderError.noPlayableURL }
         let headers = object?["header"] as? [String: String] ?? object?["headers"] as? [String: String] ?? [:]
-        return SpiderPlayback(url: url, headers: headers)
+        return SpiderPlayback(url: externalizeGatewayURL(rawURL), headers: headers)
     }
 
     private func vod(operation: String, payload: [String: String]) async throws -> VodResult {
@@ -55,6 +55,15 @@ struct SpiderGatewayService: VodServiceProtocol {
         request.setValue("OK4KiOS/0.4", forHTTPHeaderField: "User-Agent")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         return try await client.data(for: request).0
+    }
+
+    private func externalizeGatewayURL(_ value: String) -> String {
+        guard var components = URLComponents(string: value),
+              ["127.0.0.1", "localhost", "0.0.0.0"].contains(components.host?.lowercased() ?? "") else { return value }
+        components.scheme = gatewayURL.scheme
+        components.host = gatewayURL.host
+        components.port = gatewayURL.port
+        return components.url?.absoluteString ?? value
     }
 
     private var endpoint: URL {
