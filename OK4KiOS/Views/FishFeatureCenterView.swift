@@ -11,6 +11,7 @@ struct FishFeatureCenterView: View {
     @State private var liveSource = ""
     @State private var gateway = ""
     @State private var message: String?
+    @State private var cacheSizeText = "计算中…"
 
     var body: some View {
         Form {
@@ -52,6 +53,31 @@ struct FishFeatureCenterView: View {
                     .font(.caption).foregroundColor(.secondary)
             }
 
+            Section("缓存工具") {
+                HStack {
+                    Text("缓存占用")
+                    Spacer()
+                    Text(cacheSizeText).font(.caption).foregroundColor(.secondary)
+                }
+                Button("清理缓存") { clearCache() }
+                Text("清理网络缓存和临时文件，不影响收藏、历史与保存的配置。")
+                    .font(.caption).foregroundColor(.secondary)
+            }
+
+            Section("站点与数据") {
+                HStack {
+                    Text("已保存站点")
+                    Spacer()
+                    Text("\(settings.savedSites.count) 个").font(.caption).foregroundColor(.secondary)
+                }
+                HStack {
+                    Text("搜索历史")
+                    Spacer()
+                    Text("\(settings.searchHistory.count) 条").font(.caption).foregroundColor(.secondary)
+                }
+                Button("清空搜索历史") { settings.clearSearchHistory(); message = "搜索历史已清空" }
+            }
+
         }
         .navigationTitle("设置中心")
         .toolbar {
@@ -64,10 +90,44 @@ struct FishFeatureCenterView: View {
             configURL = settings.configURL
             liveSource = settings.liveSource
             gateway = settings.spiderGateway
+            refreshCacheSize()
         }
         .alert("设置中心", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
             Button("确定", role: .cancel) { message = nil }
         } message: { Text(message ?? "") }
+    }
+
+    private func refreshCacheSize() {
+        cacheSizeText = "计算中…"
+        DispatchQueue.global(qos: .utility).async {
+            var bytes: Int64 = 0
+            let cache = URLCache.shared
+            bytes += Int64(cache.currentDiskUsage)
+            bytes += Int64(cache.currentMemoryUsage)
+            if let temp = FileManager.default.temporaryDirectory.path {
+                if let enumerator = FileManager.default.enumerator(atPath: temp) {
+                    for case let url as URL in enumerator {
+                        if let value = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize {
+                            bytes += Int64(value)
+                        }
+                    }
+                }
+            }
+            let text = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+            DispatchQueue.main.async { cacheSizeText = text }
+        }
+    }
+
+    private func clearCache() {
+        URLCache.shared.removeAllCachedResponses()
+        if let temp = FileManager.default.temporaryDirectory.path,
+           let items = try? FileManager.default.contentsOfDirectory(atPath: temp) {
+            for item in items {
+                try? FileManager.default.removeItem(atPath: temp + "/" + item)
+            }
+        }
+        refreshCacheSize()
+        message = "缓存已清理"
     }
 
     private func saveVodAPI() {

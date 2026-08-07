@@ -6,13 +6,14 @@ struct PlayerView: View {
     let headers: [String: String]
     let vod: Vod?
     let episodeName: String?
+    let episodes: [Episode]
     let isLive: Bool
     let onClose: (() -> Void)?
     @StateObject private var model: PlayerViewModel
     @State private var useFFmpeg: Bool
     @State private var fallbackAttempts = 0
 
-    init(urlString: String, headers: [String: String] = [:], vod: Vod? = nil, episodeName: String? = nil, isLive: Bool = false, onClose: (() -> Void)? = nil) {
+    init(urlString: String, headers: [String: String] = [:], vod: Vod? = nil, episodeName: String? = nil, episodes: [Episode] = [], isLive: Bool = false, onClose: (() -> Void)? = nil) {
         let request = PlaybackRequest.parse(urlString, additionalHeaders: headers)
         let remoteURL = URL(string: request.urlString)
         let isHLS = remoteURL?.pathExtension.lowercased() == "m3u8" || request.urlString.lowercased().contains(".m3u8")
@@ -22,6 +23,7 @@ struct PlayerView: View {
         self.headers = needsProxy ? [:] : request.headers
         self.vod = vod
         self.episodeName = episodeName
+        self.episodes = episodes
         self.isLive = isLive
         self.onClose = onClose
         _model = StateObject(wrappedValue: PlayerViewModel(urlString: effectiveURL, headers: needsProxy ? [:] : request.headers, vod: vod, episodeName: episodeName, isLive: isLive))
@@ -73,6 +75,14 @@ struct PlayerView: View {
                         Button(rateLabel(rate)) { model.setRate(rate) }
                     }
                 } label: { Image(systemName: "speedometer") }
+                if !episodes.isEmpty {
+                    Menu {
+                        ForEach(Array(episodes.enumerated()), id: \.offset) { index, episode in
+                            Button(episode.name) { switchEpisode(episode) }
+                        }
+                    } label: { Image(systemName: "list.number") }
+                    .accessibilityLabel("选集")
+                }
             }
         }
         .onAppear {
@@ -92,6 +102,19 @@ struct PlayerView: View {
         .alert("播放失败", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
             Button("确定", role: .cancel) { model.errorMessage = nil }
         } message: { Text(model.errorMessage ?? "") }
+    }
+
+    private func switchEpisode(_ episode: Episode) {
+        let request = PlaybackRequest.parse(episode.url, additionalHeaders: headers)
+        let isHLS = request.urlString.lowercased().contains(".m3u8")
+        let needsProxy = isLive && !request.headers.isEmpty && isHLS
+        let url = needsProxy ? (URL(string: request.urlString).flatMap { LocalProxyServer.shared.url(for: $0, headers: request.headers) }?.absoluteString ?? request.urlString) : request.urlString
+        model.load(url: url, headers: needsProxy ? [:] : request.headers, episodeName: episode.name)
+        if useFFmpeg {
+            useFFmpeg = false
+        }
+        fallbackAttempts = 0
+        model.play()
     }
 
     private func fallbackToSystem() {
@@ -143,9 +166,9 @@ final class PlayerViewModel: ObservableObject, @unchecked Sendable {
     @Published var errorMessage: String?
     @Published private(set) var rate: Float = 1
     @Published private(set) var didFail = false
-    private let urlString: String
+    private var urlString: String
     private let vod: Vod?
-    private let episodeName: String?
+    private var episodeName: String?
     private let isLive: Bool
     private var timeObserver: Any?
     private var observers: [NSObjectProtocol] = []
@@ -176,6 +199,26 @@ final class PlayerViewModel: ObservableObject, @unchecked Sendable {
         if let timeObserver { player.removeTimeObserver(timeObserver) }
         statusObserver?.invalidate()
         observers.forEach(NotificationCenter.default.removeObserver)
+    }
+
+    func load(url urlString: String, headers: [String: String], episodeName: String) {
+        saveProgress()
+        statusObserver?.invalidate()
+        observers.forEach(NotificationCenter.default.removeObserver)
+        observers = []
+        guard let url = URL(string: urlString.trimmingCharacters(in: .whitespacesAndNewlines)), url.scheme != nil else {
+            errorMessage = "播放地址无效"
+            return
+        }
+        let options: [String: Any] = headers.isEmpty ? [:] : ["AVURLAssetHTTPHeaderFieldsKey": headers]
+        player.replaceCurrentItem(with: AVPlayerItem(asset: AVURLAsset(url: url, options: options)))
+        self.urlString = urlString
+        self.episodeName = episodeName
+        didFail = false
+        installRecoveryObservers()
+        if let vod {
+            LibraryStore.shared.record(vod, episode: Episode(name: episodeName, url: urlString))
+        }
     }
 
     func play() {
