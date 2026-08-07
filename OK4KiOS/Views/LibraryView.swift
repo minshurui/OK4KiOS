@@ -22,6 +22,9 @@ struct LibraryView: View {
                             VStack(alignment: .leading) {
                                 Text(entry.vod.name)
                                 Text(entry.episodeName ?? "继续播放").font(.caption).foregroundColor(.secondary)
+                                if entry.progress > 0 {
+                                    ProgressView(value: entry.progress)
+                                }
                             }
                         }
                     }

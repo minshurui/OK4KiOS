@@ -78,6 +78,7 @@ final class PlayerViewModel: ObservableObject {
     private let urlString: String
     private let vod: Vod?
     private let episodeName: String?
+    private var timeObserver: Any?
 
     init(urlString: String, headers: [String: String] = [:], vod: Vod? = nil, episodeName: String? = nil) {
         self.urlString = urlString
@@ -89,6 +90,16 @@ final class PlayerViewModel: ObservableObject {
         }
         let options: [String: Any] = headers.isEmpty ? [:] : ["AVURLAssetHTTPHeaderFieldsKey": headers]
         player.replaceCurrentItem(with: AVPlayerItem(asset: AVURLAsset(url: url, options: options)))
+        if let vod, let position = LibraryStore.shared.resumePosition(vod: vod, episodeURL: urlString) {
+            player.seek(to: CMTime(seconds: position, preferredTimescale: 600))
+        }
+        timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 10, preferredTimescale: 1), queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.saveProgress() }
+        }
+    }
+
+    deinit {
+        if let timeObserver { player.removeTimeObserver(timeObserver) }
     }
 
     func play() {
@@ -98,7 +109,18 @@ final class PlayerViewModel: ObservableObject {
         }
     }
 
-    func pause() { player.pause() }
+    func pause() {
+        saveProgress()
+        player.pause()
+    }
+
+    private func saveProgress() {
+        guard let vod, let episodeName else { return }
+        let position = player.currentTime().seconds
+        let duration = player.currentItem?.duration.seconds ?? 0
+        guard position.isFinite, position >= 0 else { return }
+        LibraryStore.shared.record(vod, episode: Episode(name: episodeName, url: urlString), position: position, duration: duration.isFinite ? duration : nil)
+    }
 
     func setRate(_ value: Float) {
         rate = value
