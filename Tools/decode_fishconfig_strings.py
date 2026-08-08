@@ -5,7 +5,7 @@ import argparse
 import re
 from pathlib import Path
 
-ARRAY_RE = re.compile(r"(f\d+short)\s*=\s*\{([^}]*)\}", re.S)
+ARRAY_RE = re.compile(r"(f\d+short)\s*=\s*(?:new short\[\])?\s*\{([^}]*)\}", re.S)
 CALL_RE = re.compile(
     r"C\d+\.(m(?:30|33|39|47|51|55|56))\((f\d+short),\s*(\d+),\s*(\d+),\s*(\d+)\)"
 )
