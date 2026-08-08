@@ -114,6 +114,15 @@ enum FishDriveRegistry {
         }
         switch normalized {
         case "guangya": return GuangyaDriveServiceAdapter()
+        case "quark": return QuarkDriveServiceAdapter()
+        case "uc": return UCDriveServiceAdapter()
+        case "tianyi": return TianyiDriveServiceAdapter()
+        case "ali": return AliDriveServiceAdapter()
+        case "baidu": return BaiduDriveServiceAdapter()
+        case "xunlei": return XunleiDriveServiceAdapter()
+        case "pan115": return Pan115DriveServiceAdapter()
+        case "pan123": return Pan123DriveServiceAdapter()
+        case "yidong": return YiDongDriveServiceAdapter()
         default: return PendingFishDriveService(driveKey: normalized)
         }
     }

@@ -263,7 +263,7 @@ final class FishConfigSiteGuardTests: XCTestCase {
 
 // MARK: - 工具
 
-private final class MemoryCredentialStore: FishCredentialStore {
+final class MemoryCredentialStore: FishCredentialStore {
     private var values: [String: Data] = [:]
     func data(for account: String) throws -> Data? { values[account] }
     func set(_ data: Data, for account: String) throws { values[account] = data }
