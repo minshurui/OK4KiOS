@@ -1,0 +1,59 @@
+{
+  "device_code": {
+    "code": 0,
+    "data": {
+      "device_code": "fixture-device-code",
+      "verification_uri_complete": "https://fixture.invalid/authorize?code=ABCD",
+      "expires_in": 180
+    },
+    "trace_id": "fixture-create"
+  },
+  "authorization_pending": {
+    "error": "authorization_pending",
+    "error_description": "fixture pending",
+    "interval": 3
+  },
+  "stored": {
+    "access_token": "fixture-access-old",
+    "refresh_token": "fixture-refresh-old",
+    "token_type": "Bearer",
+    "unknown_root": {
+      "keep": true
+    },
+    "data": {
+      "server_hint": "retain-me"
+    }
+  },
+  "poll_success": {
+    "code": 0,
+    "data": {
+      "access_token": "fixture-access-new",
+      "tokenType": "Bearer",
+      "unknown_token_field": {
+        "nested": 1
+      }
+    },
+    "new_root_field": [
+      "retain",
+      "this"
+    ]
+  },
+  "profile": {
+    "data": {
+      "sub": "fixture-subject",
+      "nickname": "Fixture User",
+      "avatar": "https://fixture.invalid/avatar.png",
+      "phone_number": "00000000000"
+    },
+    "profile_unknown": {
+      "keep": "yes"
+    }
+  },
+  "download": {
+    "code": 0,
+    "data": {
+      "signedUrl": "https://fixture.invalid/video.m3u8",
+      "expires_at": 4102444800
+    }
+  }
+}

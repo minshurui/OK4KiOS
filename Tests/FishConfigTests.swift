@@ -20,6 +20,7 @@ final class FishConfigTests: XCTestCase {
         XCTAssertEqual(value.accessToken, "a")
         XCTAssertEqual(value.refreshToken, "r")
         XCTAssertEqual(value.tokenType, "Bearer")
-        XCTAssertEqual(value.raw, raw)
+        let preserved = try XCTUnwrap(JSONSerialization.jsonObject(with: value.raw) as? [String: Any])
+        XCTAssertNotNil((preserved["data"] as? [String: Any])?["unknown"])
     }
 }

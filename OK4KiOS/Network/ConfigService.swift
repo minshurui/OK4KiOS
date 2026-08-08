@@ -33,6 +33,26 @@ struct ConfigService {
         request.timeoutInterval = 20
         request.setValue("OK4KiOS/0.5", forHTTPHeaderField: "User-Agent")
         let (data, _) = try await client.data(for: request)
-        return try JSONDecoder().decode(TVBoxConfig.self, from: data)
+        return try JSONDecoder().decode(TVBoxConfig.self, from: decryptFishExts(in: data))
+    }
+
+    /// FishGuard extDe envelopes are decrypted by the native Go bridge before
+    /// TVBoxSite decoding, so downstream adapters receive the original JSON ext.
+    private func decryptFishExts(in data: Data) throws -> Data {
+        guard GoSpiderBridge.isAvailable,
+              var root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              var sites = root["sites"] as? [[String: Any]] else { return data }
+        var changed = false
+        for index in sites.indices {
+            guard let encoded = sites[index]["ext"] as? String,
+                  encoded.hasPrefix("A"),
+                  let decrypted = try? GoSpiderBridge.decryptExt(encoded),
+                  let value = try? JSONSerialization.jsonObject(with: decrypted) else { continue }
+            sites[index]["ext"] = value
+            changed = true
+        }
+        guard changed else { return data }
+        root["sites"] = sites
+        return try JSONSerialization.data(withJSONObject: root)
     }
 }

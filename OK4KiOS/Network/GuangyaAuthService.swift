@@ -7,23 +7,84 @@ struct GuangyaDeviceAuthorization: Equatable, Sendable {
     let interval: TimeInterval
 }
 
-struct GuangyaCredential: Codable, Equatable, Sendable {
+struct GuangyaCredential: Equatable, Sendable {
     let raw: Data
     let accessToken: String
     let refreshToken: String
     let tokenType: String
+    let subject: String
+    let name: String
+    let picture: String
+    let phone: String
+    let kaiserFolder: String
 
-    init(responseData: Data) throws {
-        let object = try JSONSerialization.jsonObject(with: responseData) as? [String: Any]
-        let data = (object?["data"] as? [String: Any]) ?? object ?? [:]
-        func string(_ snake: String, _ camel: String) -> String {
-            (data[snake] as? String) ?? (data[camel] as? String) ?? (object?[snake] as? String) ?? (object?[camel] as? String) ?? ""
+    var authorizationHeader: String { "\(tokenType.nonempty ?? "Bearer") \(accessToken)" }
+    var displayName: String? { name.nonempty ?? phone.nonempty ?? subject.nonempty }
+
+    init(responseData: Data, fallback: GuangyaCredential? = nil) throws {
+        let response = try Self.dictionary(responseData)
+        let previous = try fallback.map { try Self.dictionary($0.raw) } ?? [:]
+        var merged = Self.deepMerge(previous, response)
+        let responseDataObject = response["data"] as? [String: Any] ?? response
+        let previousDataObject = previous["data"] as? [String: Any] ?? previous
+
+        func value(_ keys: [String], fallbackValue: String = "") -> String {
+            Self.firstString(in: [responseDataObject, response, previousDataObject, previous], keys: keys) ?? fallbackValue
         }
-        accessToken = string("access_token", "accessToken")
-        refreshToken = string("refresh_token", "refreshToken")
-        tokenType = string("token_type", "tokenType")
+
+        accessToken = value(["access_token", "accessToken"], fallbackValue: fallback?.accessToken ?? "")
+        refreshToken = value(["refresh_token", "refreshToken"], fallbackValue: fallback?.refreshToken ?? "")
+        tokenType = value(["token_type", "tokenType"], fallbackValue: fallback?.tokenType ?? "Bearer").nonempty ?? "Bearer"
+        subject = value(["sub"], fallbackValue: fallback?.subject ?? "")
+        name = value(["name", "nickname"], fallbackValue: fallback?.name ?? "")
+        picture = value(["picture", "avatar"], fallbackValue: fallback?.picture ?? "")
+        phone = value(["phone_number", "phone"], fallbackValue: fallback?.phone ?? "")
+        kaiserFolder = value(["kaiser_folder"], fallbackValue: fallback?.kaiserFolder ?? "")
         guard !accessToken.isEmpty else { throw GuangyaAuthError.invalidResponse }
-        raw = responseData
+
+        // Canonical projections make business readers independent of response aliases,
+        // while deepMerge retains every unknown root and nested field.
+        merged["access_token"] = accessToken
+        if !refreshToken.isEmpty { merged["refresh_token"] = refreshToken }
+        merged["token_type"] = tokenType
+        if !subject.isEmpty { merged["sub"] = subject }
+        if !name.isEmpty { merged["name"] = name }
+        if !picture.isEmpty { merged["picture"] = picture }
+        if !phone.isEmpty { merged["phone"] = phone }
+        if !kaiserFolder.isEmpty { merged["kaiser_folder"] = kaiserFolder }
+        raw = try JSONSerialization.data(withJSONObject: merged, options: [.sortedKeys])
+    }
+
+    func mergingProfile(_ responseData: Data) throws -> GuangyaCredential {
+        try GuangyaCredential(responseData: responseData, fallback: self)
+    }
+
+    private static func dictionary(_ data: Data) throws -> [String: Any] {
+        guard let value = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw GuangyaAuthError.invalidResponse
+        }
+        return value
+    }
+
+    private static func firstString(in objects: [[String: Any]], keys: [String]) -> String? {
+        for object in objects {
+            for key in keys {
+                if let value = object[key] as? String, let value = value.nonempty { return value }
+            }
+        }
+        return nil
+    }
+
+    private static func deepMerge(_ base: [String: Any], _ update: [String: Any]) -> [String: Any] {
+        var result = base
+        for (key, value) in update {
+            if let old = result[key] as? [String: Any], let new = value as? [String: Any] {
+                result[key] = deepMerge(old, new)
+            } else {
+                result[key] = value
+            }
+        }
+        return result
     }
 }
 
@@ -37,6 +98,8 @@ enum GuangyaAuthError: LocalizedError, Equatable {
     case server(String)
     case timeout
     case cancelled
+    case missingRefreshToken
+    case notLoggedIn
 
     var errorDescription: String? {
         switch self {
@@ -44,6 +107,8 @@ enum GuangyaAuthError: LocalizedError, Equatable {
         case .server(let text): return "光鸭授权失败：\(text)"
         case .timeout: return "光鸭扫码已超时"
         case .cancelled: return "光鸭扫码已取消"
+        case .missingRefreshToken: return "缺少 refresh token，请重新扫码登录"
+        case .notLoggedIn: return "光鸭网盘未登录，请先扫码登录"
         }
     }
 }
@@ -68,60 +133,80 @@ struct GuangyaHTTPClient: GuangyaHTTPClientProtocol {
 
 struct GuangyaAuthService {
     static let clientID = "aMe-8VSlkrbQXpUR"
+    static let accountBase = "https://account.guangyapan.com"
     private let client: GuangyaHTTPClientProtocol
 
     init(client: GuangyaHTTPClientProtocol = GuangyaHTTPClient()) { self.client = client }
 
     func begin() async throws -> GuangyaDeviceAuthorization {
-        let body: [String: Any] = ["scope": "user", "client_id": Self.clientID]
-        let result = try await post(url: "https://account.guangyapan.com/v1/auth/device/code", body: body, acceptErrorStatus: false)
+        let result = try await request(path: "/v1/auth/device/code", method: "POST", body: ["scope": "user", "client_id": Self.clientID])
         let root = try dictionary(result.data)
         let data = (root["data"] as? [String: Any]) ?? root
         guard let code = firstString(data, root, keys: ["device_code", "deviceCode"]),
               let urlText = firstString(data, root, keys: ["verification_uri_complete", "verification_url", "verification_uri", "verificationUriComplete", "verificationUrl", "verificationUri"]),
               let url = URL(string: urlText) else { throw GuangyaAuthError.invalidResponse }
-        return .init(
-            deviceCode: code,
-            verificationURL: url,
-            expiresIn: number(data["expires_in"] ?? data["expiresIn"]) ?? 180,
-            interval: max(1, number(data["interval"]) ?? 3)
-        )
+        return .init(deviceCode: code, verificationURL: url,
+                     expiresIn: number(data["expires_in"] ?? data["expiresIn"]) ?? 180,
+                     interval: max(1, number(data["interval"]) ?? 3))
     }
 
     func poll(deviceCode: String) async throws -> GuangyaPollResult {
-        let body: [String: Any] = [
+        let result = try await request(path: "/v1/auth/token", method: "POST", body: [
             "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
             "device_code": deviceCode,
             "client_id": Self.clientID
-        ]
-        let result = try await post(url: "https://account.guangyapan.com/v1/auth/token", body: body, acceptErrorStatus: true)
+        ], acceptErrorStatus: true)
         let root = try dictionary(result.data)
-        if let error = root["error"] as? String, !error.isEmpty {
+        if let error = (root["error"] as? String)?.nonempty {
             if ["authorization_pending", "slow_down", "pending"].contains(error) { return .pending }
-            let description = (root["error_description"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-            throw GuangyaAuthError.server(description ?? error)
+            throw GuangyaAuthError.server((root["error_description"] as? String)?.nonempty ?? error)
         }
-        if let code = root["code"] as? Int, code != 0, code != 200 { return .pending }
         do { return .authorized(try GuangyaCredential(responseData: result.data)) }
         catch GuangyaAuthError.invalidResponse { return .pending }
     }
 
-    private func post(url: String, body: [String: Any], acceptErrorStatus: Bool) async throws -> (data: Data, response: HTTPURLResponse) {
-        guard let endpoint = URL(string: url) else { throw URLError(.badURL) }
+    func refresh(_ credential: GuangyaCredential) async throws -> GuangyaCredential {
+        guard !credential.refreshToken.isEmpty else { throw GuangyaAuthError.missingRefreshToken }
+        let result = try await request(path: "/v1/auth/token", method: "POST", body: [
+            "grant_type": "refresh_token", "refresh_token": credential.refreshToken, "client_id": Self.clientID
+        ])
+        let root = try dictionary(result.data)
+        if let error = (root["error"] as? String)?.nonempty {
+            throw GuangyaAuthError.server((root["error_description"] as? String)?.nonempty ?? error)
+        }
+        return try GuangyaCredential(responseData: result.data, fallback: credential)
+    }
+
+    func profile(for credential: GuangyaCredential) async throws -> GuangyaCredential {
+        let result = try await request(path: "/v1/user/me", method: "GET", authorization: credential.authorizationHeader)
+        return try credential.mergingProfile(result.data)
+    }
+
+    private func request(path: String, method: String, body: [String: Any]? = nil,
+                         authorization: String? = nil, acceptErrorStatus: Bool = false) async throws -> (data: Data, response: HTTPURLResponse) {
+        guard let endpoint = URL(string: Self.accountBase + path) else { throw URLError(.badURL) }
         var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
+        request.httpMethod = method
         request.timeoutInterval = 20
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        if let body { request.httpBody = try JSONSerialization.data(withJSONObject: body) }
+        applyHeaders(to: &request, authorization: authorization)
+        let result = try await client.data(for: request)
+        if !acceptErrorStatus && !(200...299).contains(result.1.statusCode) {
+            let root = try? dictionary(result.0)
+            let message = (root?["error_description"] as? String)?.nonempty ?? (root?["error"] as? String)?.nonempty
+            if let message { throw GuangyaAuthError.server(message) }
+            throw HTTPError.status(result.1.statusCode)
+        }
+        return result
+    }
+
+    private func applyHeaders(to request: inout URLRequest, authorization: String?) {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("https://www.guangyapan.com", forHTTPHeaderField: "Origin")
         request.setValue("https://www.guangyapan.com/", forHTTPHeaderField: "Referer")
-        request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148", forHTTPHeaderField: "User-Agent")
-        let result = try await client.data(for: request)
-        if !acceptErrorStatus && !(200...299).contains(result.1.statusCode) {
-            throw HTTPError.status(result.1.statusCode)
-        }
-        return result
+        request.setValue("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        if let authorization { request.setValue(authorization, forHTTPHeaderField: "Authorization") }
     }
 
     private func dictionary(_ data: Data) throws -> [String: Any] {
@@ -131,8 +216,8 @@ struct GuangyaAuthService {
 
     private func firstString(_ primary: [String: Any], _ fallback: [String: Any], keys: [String]) -> String? {
         for key in keys {
-            if let value = primary[key] as? String, !value.isEmpty { return value }
-            if let value = fallback[key] as? String, !value.isEmpty { return value }
+            if let value = (primary[key] as? String)?.nonempty { return value }
+            if let value = (fallback[key] as? String)?.nonempty { return value }
         }
         return nil
     }
@@ -141,5 +226,12 @@ struct GuangyaAuthService {
         if let value = value as? NSNumber { return value.doubleValue }
         if let value = value as? String { return TimeInterval(value) }
         return nil
+    }
+}
+
+private extension String {
+    var nonempty: String? {
+        let value = trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : value
     }
 }

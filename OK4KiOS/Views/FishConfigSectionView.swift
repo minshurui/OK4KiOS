@@ -6,6 +6,7 @@ struct FishConfigSectionView: View {
     @State private var message: String?
     @State private var showingGuangyaLogin = false
     @State private var guangyaRevision = 0
+    @State private var guangyaStatus = "正在读取账号状态…"
 
     var body: some View {
         List {
@@ -36,34 +37,44 @@ struct FishConfigSectionView: View {
             }
             .navigationViewStyle(.stack)
         }
+        .task(id: guangyaRevision) {
+            guard section == .guangya else { return }
+            do {
+                let credential = try await GuangyaSession.shared.validatedCredential()
+                guangyaStatus = credential.displayName.map { "已登录 · \($0)" } ?? "已登录"
+            } catch GuangyaAuthError.notLoggedIn {
+                guangyaStatus = "需要扫码登录"
+            } catch {
+                guangyaStatus = "登录已失效，请重新扫码"
+            }
+        }
         .alert(section.title, isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
             Button("确定", role: .cancel) { message = nil }
         } message: { Text(message ?? "") }
     }
 
     private func detail(for action: FishConfigAction) -> String {
-        if action.id == "guangya_status" {
-            _ = guangyaRevision
-            return hasGuangyaCredential ? "已登录" : "需要扫码登录"
-        }
-        return action.detail
-    }
-
-    private var hasGuangyaCredential: Bool {
-        guard let data = try? FishSecureStore.shared.data(for: "guangya") else { return false }
-        return (try? GuangyaCredential(responseData: data)) != nil
+        action.id == "guangya_status" ? guangyaStatus : action.detail
     }
 
     private func run(_ action: FishConfigAction) {
         switch action.id {
         case "guangya_login": showingGuangyaLogin = true
-        case "guangya_status": message = hasGuangyaCredential ? "光鸭网盘已登录" : "光鸭网盘需要扫码登录"
+        case "guangya_status":
+            Task {
+                do {
+                    let credential = try await GuangyaSession.shared.validatedCredential()
+                    let account = credential.displayName.map { "（\($0)）" } ?? ""
+                    await MainActor.run { guangyaStatus = "已登录" + account; message = "光鸭网盘已登录" + account }
+                } catch { await MainActor.run { message = error.localizedDescription } }
+            }
         case "guangya_clean":
-            do {
-                try FishSecureStore.shared.remove("guangya")
-                guangyaRevision += 1
-                message = "光鸭账号已清除"
-            } catch { message = error.localizedDescription }
+            Task {
+                do {
+                    try await GuangyaSession.shared.logout()
+                    await MainActor.run { guangyaRevision += 1; guangyaStatus = "需要扫码登录"; message = "光鸭账号已清除" }
+                } catch { await MainActor.run { message = error.localizedDescription } }
+            }
         default:
             message = "“\(action.title)”的 Android action 已定位，原生协议仍在移植；当前不会用手动导入或空结果代替。"
         }
@@ -126,8 +137,9 @@ private struct GuangyaLoginView: View {
                     case .pending:
                         try await Task.sleep(nanoseconds: UInt64(auth.interval * 1_000_000_000))
                     case .authorized(let credential):
-                        try FishSecureStore.shared.set(credential.raw, for: "guangya")
-                        await MainActor.run { status = "光鸭网盘登录成功"; onSuccess() }
+                        let saved = try await GuangyaSession.shared.finishLogin(credential)
+                        let suffix = saved.displayName.map { " · \($0)" } ?? ""
+                        await MainActor.run { status = "光鸭网盘登录成功" + suffix; onSuccess() }
                         return
                     }
                 }

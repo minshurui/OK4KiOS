@@ -1,8 +1,14 @@
 import Foundation
 import Security
 
+protocol FishCredentialStore {
+    func data(for account: String) throws -> Data?
+    func set(_ data: Data, for account: String) throws
+    func remove(_ account: String) throws
+}
+
 /// Opaque credential storage used by native Fish adapters. Secrets are never written to UserDefaults.
-final class FishSecureStore {
+final class FishSecureStore: FishCredentialStore {
     static let shared = FishSecureStore()
     private let service = "com.fongmi.ok4k.ios.fish"
 
