@@ -37,6 +37,21 @@ enum GoSpiderBridge {
     static func play(siteJSON: String) throws -> Data { try call("ok4k_play", siteJSON: siteJSON) }
     static func decryptExt(_ encoded: String) throws -> Data { try call("ok4k_ext_decrypt", siteJSON: encoded) }
 
+    // MARK: - FishConfig 网关（worker-A 接口对齐点）
+    //
+    // 网关契约（GoSpider/API.md 生成后按同一信封对齐）：
+    //   请求 JSON: {"action":"quark_status","section":"1","drive":"quark","params":{}}
+    //   响应 JSON: {"ok":true,"message":"...","status":{"state":"notLoggedIn","detail":"..."},"thread":"normal"}
+    // 当前 Go 侧尚未导出 ok4k_fishconfig：supportsFishConfig == false 时全部走本地协议
+    // （光鸭完整生命周期，其余网盘诚实 pending）。
+    static var supportsFishConfig: Bool {
+        resolve("ok4k_fishconfig", as: CStringFn.self) != nil
+    }
+
+    static func fishconfig(actionJSON: String) throws -> Data {
+        try call("ok4k_fishconfig", siteJSON: actionJSON)
+    }
+
     // MARK: - Private
 
     private static func resolve<T>(_ name: String, as type: T.Type) -> T? {

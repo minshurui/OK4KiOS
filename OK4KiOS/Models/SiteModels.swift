@@ -53,11 +53,19 @@ struct TVBoxSite: Codable, Identifiable, Hashable, Sendable {
     var id: String { key.isEmpty ? name + api : key }
     var apiURL: URL? { URL(string: api.trimmingCharacters(in: .whitespacesAndNewlines)) }
     var nativeBaseURLs: [URL] { ext?.candidateURLs ?? [] }
+    /// FishConfig 特殊站点（type 3 / api csp_FishConfig）：设置中心入口，不是点播目录。
+    /// 与 Android 一致：该站点在 UI 层打开 iOS 功能中心（SettingsView），AppSettings 也
+    /// 保证它永远不会成为选中的点播站点。
     var isFeatureCenter: Bool {
         key.caseInsensitiveCompare("FishConfig") == .orderedSame
             || api.caseInsensitiveCompare("csp_FishConfig") == .orderedSame
     }
-    var canRunNatively: Bool { type == 0 || type == 1 || (type == 3 && !nativeBaseURLs.isEmpty) }
+    /// 能否作为原生点播源执行。FishConfig（type 3 且无 nativeBaseURLs）返回 false 是
+    /// 正确语义：设置中心不能被当作 VOD spider 执行，只能走功能中心入口。
+    var canRunNatively: Bool {
+        if isFeatureCenter { return false }
+        return type == 0 || type == 1 || (type == 3 && !nativeBaseURLs.isEmpty)
+    }
     var kindLabel: String {
         if isFeatureCenter { return "功能中心" }
         switch type {

@@ -15,6 +15,7 @@ enum SpiderError: LocalizedError {
     case invalidResponse
     case noPlayableURL
     case nativeMigrationPending(String)
+    case featureCenter(String)
 
     var errorDescription: String? {
         switch self {
@@ -22,6 +23,7 @@ enum SpiderError: LocalizedError {
         case .invalidResponse: return "站点返回内容无法解析"
         case .noPlayableURL: return "没有解析到可播放地址"
         case .nativeMigrationPending(let name): return "\(name) 当前不能在 iPhone/iPad 原生执行；请选择已支持站点，或配置可选 Spider 网关"
+        case .featureCenter(let name): return "\(name) 是设置中心入口，不能作为点播站点使用"
         }
     }
 }
