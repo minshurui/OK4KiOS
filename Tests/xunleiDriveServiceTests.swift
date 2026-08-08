@@ -71,7 +71,7 @@ final class XunleiDriveAdapterTests: XCTestCase {
 
 // MARK: - 迅雷 mock HTTP client
 
-struct XunleiMockHTTPClient: XunleiHTTPClientProtocol {
+final class XunleiMockHTTPClient: XunleiHTTPClientProtocol {
     var responses: [(Int, Data)]
     var requests: [URLRequest] = []
 
@@ -79,7 +79,7 @@ struct XunleiMockHTTPClient: XunleiHTTPClientProtocol {
         self.responses = responses
     }
 
-    mutating func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         requests.append(request)
         guard !responses.isEmpty else {
             throw URLError(.badServerResponse)

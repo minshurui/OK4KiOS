@@ -39,10 +39,10 @@ final class YiDongDriveServiceTests: XCTestCase {
     }
 }
 
-private struct MockYiDongHTTPClient: YiDongHTTPClient {
+private final class MockYiDongHTTPClient: YiDongHTTPClient {
     let responses: [(Int, Data)]
     private var index = 0
-    mutating func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
         let (code, data) = responses[min(index, responses.count - 1)]
         index += 1
         let response = HTTPURLResponse(url: request.url!, statusCode: code, httpVersion: nil, headerFields: nil)!
