@@ -87,6 +87,8 @@ protocol YiDongHTTPClient: Sendable {
     func data(for request: URLRequest) async throws -> (Data, URLResponse)
 }
 
+extension URLSession: YiDongHTTPClient {}
+
 struct YiDongDriveService: Sendable {
     var client: any YiDongHTTPClient
     let userBase = URL(string: "https://user-njs.yun.139.com")!

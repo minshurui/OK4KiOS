@@ -142,14 +142,14 @@ struct Pan115AuthService {
         var request = URLRequest(url: URL(string: Self.qrcodeBase)!)
         request.httpMethod = "GET"
         request.setValue(Self.deviceHeader, forHTTPHeaderField: "User-Agent")
-        let result = try await client.data(for: request)
-        let root = try dictionary(result.data)
-        let data = (root["data"] as? [String: Any]) ?? root
-        guard let qrCode = firstString(data, root, keys: ["qrcode", "qr_code", "qrCode"]),
-              let uid = firstString(data, root, keys: ["uid", "user_id", "userId"]),
-              let time = number(data["time"] ?? data["expires_in"]) ?? 180,
-              let sign = firstString(data, root, keys: ["sign"]) else { throw Pan115AuthError.invalidResponse }
-        return .init(qrCode: qrCode, uid: uid, time: time, sign: sign, appID: "40")
+        let (data, _) = try await client.data(for: request)
+        let root = try Self.dictionary(data)
+        let body = (root["data"] as? [String: Any]) ?? root
+        guard let qrCode = Self.firstString(in: [body, root], keys: ["qrcode", "qr_code", "qrCode", "qrContent"]),
+              let uid = Self.firstString(in: [body, root], keys: ["uid", "user_id", "userId"]),
+              let sign = Self.firstString(in: [body, root], keys: ["sign", "sig"]) else { throw Pan115AuthError.invalidResponse }
+        let time = Self.number(body["time"] ?? body["expires_in"]) ?? 300
+        return Pan115QRCodeResponse(qrCode: qrCode, uid: uid, time: time, sign: sign, appID: "40")
     }
 
     func poll(uid: String, time: Int, sign: String) async throws -> Pan115PollResult {
@@ -162,18 +162,18 @@ struct Pan115AuthService {
         var request = URLRequest(url: components.url!)
         request.httpMethod = "GET"
         request.setValue(Self.deviceHeader, forHTTPHeaderField: "User-Agent")
-        let result = try await client.data(for: request)
-        let root = try dictionary(result.data)
+        let (data, _) = try await client.data(for: request)
+        let root = try Self.dictionary(data)
         let status = (root["status"] as? Bool) ?? false
         let message = (root["message"] as? String) ?? ""
         if status {
-            let data = (root["data"] as? [String: Any]) ?? [:]
-            guard let token = firstString(data, root, keys: ["token", "access_token", "accessToken"]) else {
+            let body = (root["data"] as? [String: Any]) ?? [:]
+            guard let token = Self.firstString(in: [body, root], keys: ["token", "access_token", "accessToken"]) else {
                 throw Pan115AuthError.invalidResponse
             }
-            let credential = try Pan115Credential(responseData: result.data)
+            let credential = try Pan115Credential(responseData: data)
             return .authorized(credential)
-        } else if message.contains("pending") || message.contains("wait") || message.contains("未扫描") {
+        } else if message.contains("pending") || message.contains("wait") || message.contains("未扫描") || message.contains("扫码") {
             return .pending
         } else {
             throw Pan115AuthError.server(message)
@@ -185,8 +185,8 @@ struct Pan115AuthService {
         request.httpMethod = "GET"
         request.setValue(Self.deviceHeader, forHTTPHeaderField: "User-Agent")
         request.setValue("token=\(credential.token)", forHTTPHeaderField: "Cookie")
-        let result = try await client.data(for: request)
-        return try credential.mergingProfile(result.data)
+        let (data, _) = try await client.data(for: request)
+        return try credential.mergingProfile(data)
     }
 
     private static func dictionary(_ data: Data) throws -> [String: Any] {
@@ -196,7 +196,7 @@ struct Pan115AuthService {
         return value
     }
 
-    private static func firstString(_ objects: [String: Any]..., keys: [String]) -> String? {
+    private static func firstString(in objects: [[String: Any]], keys: [String]) -> String? {
         for object in objects {
             for key in keys {
                 if let value = object[key] as? String, let value = value.nonempty { return value }

@@ -37,7 +37,8 @@ struct BaiduCredential: Equatable, Sendable {
 
         // Cookie 从请求头或响应中提取
         var cookieDict: [String: String] = [:]
-        if let cookieString = value(["cookie", "Cookie"]) {
+        let cookieString = value(["cookie", "Cookie"])
+        if !cookieString.isEmpty {
             for pair in cookieString.split(separator: ";") {
                 let parts = pair.split(separator: "=", maxSplits: 1)
                 if parts.count == 2 {

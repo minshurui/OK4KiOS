@@ -189,7 +189,7 @@ struct AliAuthService {
             if let error = firstString(root, keys: ["error", "error_code"]), error.contains("pending") {
                 return .pending
             }
-            throw AliAuthError.server(error ?? "HTTP 400")
+            throw AliAuthError.server("HTTP 400")
         }
         guard response.statusCode == 200 else {
             throw AliAuthError.server("HTTP \(response.statusCode)")
