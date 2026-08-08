@@ -104,10 +104,17 @@ protocol FishDriveService: Sendable {
 // MARK: - 网盘服务注册表
 
 enum FishDriveRegistry {
+    /// 测试/网关可注入的替身服务（Keychain 在无 entitlement 环境不可用）。
+    static var override: [String: FishDriveService] = [:]
+
     static func service(for key: String) -> FishDriveService {
-        switch key.lowercased() {
+        let normalized = key.lowercased()
+        if let injected = override[normalized] {
+            return injected
+        }
+        switch normalized {
         case "guangya": return GuangyaDriveServiceAdapter()
-        default: return PendingFishDriveService(driveKey: key.lowercased())
+        default: return PendingFishDriveService(driveKey: normalized)
         }
     }
 }

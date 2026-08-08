@@ -120,7 +120,9 @@ final class GuangyaDriveAdapterTests: XCTestCase {
         let saved = try XCTUnwrap(try store.data(for: "guangya"))
         let root = try XCTUnwrap(JSONSerialization.jsonObject(with: saved) as? [String: Any])
         XCTAssertEqual((root["data"] as? [String: Any])?["access_token"] as? String, "a")
-        XCTAssertNotNil((root["data"] as? [String: Any])?["unknown"])
+        // 未知字段深合并保留在响应原层级（根层），与 Android 动态 JSON 无损要求一致。
+        XCTAssertNotNil(root["unknown"])
+        XCTAssertEqual((root["unknown"] as? [String: Any])?["keep"] as? Int, 1)
     }
 
     func testPollAuthorizedDirectlyPersistsAndReportsLoggedInStatus() async throws {
@@ -186,6 +188,13 @@ final class FishConfigGatewayTests: XCTestCase {
     }
 
     func testCleanActionOnGuangyaIsIdempotent() async throws {
+        // Keychain 在 CI 模拟器无 entitlement，注入 memory-store 适配器后再走网关。
+        let store = MemoryCredentialStore()
+        let client = GuangyaMockHTTPClient(responses: [])
+        let auth = GuangyaAuthService(client: client)
+        let session = GuangyaSession(store: store, service: auth)
+        FishDriveRegistry.override["guangya"] = GuangyaDriveServiceAdapter(session: session, auth: auth, threadStore: FishThreadStore(defaults: UserDefaults(suiteName: "test.clean.guangya")!))
+        defer { FishDriveRegistry.override["guangya"] = nil }
         let result = try await FishConfigGateway.perform(actionID: "guangya_clean", section: .guangya)
         XCTAssertTrue(result.message.contains("已清除"))
     }
