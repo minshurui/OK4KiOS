@@ -99,7 +99,7 @@ Android 的 `c()`/`Y()`只持久化已知 8 字段，会丢未知字段；iOS �
 | 我的文件播放 URL | `t` | `/userres/v1/get_res_download_url`; `fileId` | 账号 Authorization | 已取证 |
 | 分享直链 | `v` | `/userres/v1/get_share_download_url`; `fileId`, share `accessToken` | 公共请求 | 已取证 |
 | 播放策略 | `P`/`w` | 普通分享直接 `v()`；无限线路先 `X()` 转存再 `t()`，失败回退 `v()`；我的文件 `t()` | 返回播放器 Header 为桌面 UA + `Referer: https://www.guangyapan.com/` | 已取证 |
-| 字幕 | 未在 `C0192G.java` 定位到 subtitle/caption/srt/ass/vtt 处理 | 未取证 | 未取证 | **闭环未完成，禁止宣称网盘接通** |
+| 字幕 | 全库检索确认：`C0192G.java` 及光鸭播放链无 subtitle/caption/srt/ass/vtt 处理；播放 URL 接口只返回 URL 字段；Android 字幕由播放器层 `RefreshEvent.SUBTITLE + Sub.from(path)` 提供（`VideoActivity.java:1431`），不来自光鸭 spider 响应。结论：**光鸭协议无字幕字段，字幕属播放器层能力**（AVPlayer 原生支持 HLS 内嵌字幕），不阻塞网盘播放闭环 | 已取证 | 已取证 | 已确认：协议无字幕，播放器层处理 |
 
 关键来源：`C0192G.java:358-532, 610-664, 839-919, 1128-1150, 1438-1504`。
 
@@ -108,5 +108,5 @@ Android 的 `c()`/`Y()`只持久化已知 8 字段，会丢未知字段；iOS �
 1. 解码 `FishDrive`、`Bili` 动态 action，并追到实际 handler。
 2. 对每个账号建立同格式表：创建/二维码/轮询/成功条件/保存字段/刷新/退出/业务读取。
 3. 光鸭独立复现器 `Tools/reproduce_guangya_protocol.py` 已用 fixture 验证请求体、成功判定、JSON 无损深合并及播放 URL 兼容字段；`create-device` 已真实创建 device code。下一步采样 pending；成功扫码仍需用户授权。
-4. 再复现分享解析、枚举、转存、任务轮询、播放 URL、Header；继续定位字幕关联逻辑。
+4. 再复现分享解析、枚举、转存、任务轮询、播放 URL、Header。字幕已取证：光鸭协议无字幕字段，字幕由播放器层处理，不阻塞网盘闭环。
 5. 证据与独立复现通过后才接 Swift 业务；全功能完成前不跑阶段 CI、不打 IPA。
