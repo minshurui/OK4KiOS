@@ -101,10 +101,22 @@ struct XunleiDeviceCodeResponse: Equatable, Sendable {
 }
 
 // MARK: - 认证服务
+protocol XunleiHTTPClientProtocol {
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse)
+}
+
+extension URLSession: XunleiHTTPClientProtocol {
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        let (data, response) = try await self.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        return (data, http)
+    }
+}
+
 struct XunleiAuthService {
     var baseURL = URL(string: "https://xluser-ssl.xunlei.com/v1")!
     var clientID = "d16d8f6b-e0c8-48f0-87c4-4f43a34d37c0"
-    var session: URLSession = .shared
+    var client: XunleiHTTPClientProtocol = URLSession.shared
 
     // MARK: 创建扫码登录
     func createQrcodeLogin() async throws -> XunleiDeviceCodeResponse {
@@ -118,7 +130,7 @@ struct XunleiAuthService {
             "scope": "user"
         ])
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await client.data(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw XunleiAuthError.invalidResponse
         }
@@ -158,7 +170,7 @@ struct XunleiAuthService {
             "device_code": deviceCode
         ])
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await client.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw XunleiAuthError.invalidResponse
         }
@@ -197,7 +209,7 @@ struct XunleiAuthService {
         request.setValue(credential.authorizationHeader, forHTTPHeaderField: "Authorization")
         request.setValue(deviceID(), forHTTPHeaderField: "x-device-id")
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await client.data(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw XunleiAuthError.invalidResponse
         }
@@ -218,7 +230,7 @@ struct XunleiAuthService {
             "refresh_token": refreshToken
         ])
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await client.data(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw XunleiAuthError.invalidResponse
         }

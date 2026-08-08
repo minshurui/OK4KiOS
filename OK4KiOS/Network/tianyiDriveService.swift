@@ -155,6 +155,18 @@ enum TianyiAuthError: Error, LocalizedError {
 }
 
 /// 天翼云盘认证服务
+protocol TianyiHTTPClientProtocol {
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse)
+}
+
+extension URLSession: TianyiHTTPClientProtocol {
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        let (data, response) = try await self.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        return (data, http)
+    }
+}
+
 struct TianyiAuthService {
     private let baseURL = URL(string: "https://api.cloud.189.cn")!
     private let appId = "8027001086180899"
@@ -163,8 +175,9 @@ struct TianyiAuthService {
     private let version = "6.2"
     private let session: URLSession
 
-    init(session: URLSession = .shared) {
-        self.session = session
+    private let client: TianyiHTTPClientProtocol
+    init(client: TianyiHTTPClientProtocol = URLSession.shared) {
+        self.client = client
     }
 
     // MARK: - 扫码登录
@@ -187,7 +200,7 @@ struct TianyiAuthService {
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await client.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw TianyiAuthError.networkError("无效响应")
         }
@@ -240,7 +253,7 @@ struct TianyiAuthService {
             .joined(separator: "&")
         request.httpBody = bodyString.data(using: .utf8)
         
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await client.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw TianyiAuthError.networkError("无效响应")
         }
@@ -280,7 +293,7 @@ struct TianyiAuthService {
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await client.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw TianyiAuthError.networkError("无效响应")
         }
@@ -311,7 +324,7 @@ struct TianyiAuthService {
         }
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await client.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw TianyiAuthError.networkError("无效响应")
         }
