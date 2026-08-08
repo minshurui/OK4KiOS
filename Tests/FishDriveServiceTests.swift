@@ -175,14 +175,22 @@ final class GuangyaDriveAdapterTests: XCTestCase {
 
 final class FishConfigGatewayTests: XCTestCase {
     func testStatusActionReturnsHonestDetail() async throws {
+        // Keychain 在 CI 模拟器无 entitlement：注入 memory-store quark 适配器后走网关。
+        let store = MemoryCredentialStore()
+        let client = QuarkMockHTTPClient(responses: [])
+        let auth = QuarkAuthService(client: client)
+        let session = QuarkSession(store: store, service: auth)
+        FishDriveRegistry.override["quark"] = QuarkDriveServiceAdapter(session: session, auth: auth, threadStore: FishThreadStore(defaults: UserDefaults(suiteName: "test.gw.quark")!))
+        defer { FishDriveRegistry.override["quark"] = nil }
         let result = try await FishConfigGateway.perform(actionID: "quark_status", section: .quark)
         XCTAssertEqual(result.status?.state, .notLoggedIn)
         XCTAssertTrue(result.message.contains("未登录"))
     }
 
     func testScanLoginForUnverifiedDriveThrowsPending() async throws {
+        // 移动云盘扫码协议未取证，扫码动作必须诚实抛错。
         do {
-            _ = try await FishConfigGateway.perform(actionID: "quark_scan", section: .quark)
+            _ = try await FishConfigGateway.perform(actionID: "yidong_scan", section: .yidong)
             XCTFail("未取证的扫码必须抛错")
         } catch FishDriveError.protocolPending { }
     }

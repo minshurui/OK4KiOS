@@ -104,11 +104,12 @@ final class AliDriveAdapterTests: XCTestCase {
 
         let refreshBody = Data(#"{"access_token":"new","refresh_token":"refresh123","token_type":"Bearer"}"#.utf8)
         let profileBody = Data(#"{"name":"User"}"#.utf8)
-        let (adapter, client) = makeAdapter(responses: [(200, refreshBody), (200, profileBody)], store: store)
+        // validatedCredential: 先 profile（失败）→ refresh → 再 profile
+        let (adapter, client) = makeAdapter(responses: [(400, Data()), (200, refreshBody), (200, profileBody)], store: store)
 
         try await adapter.refresh()
 
-        XCTAssertEqual(client.requests[0].url?.absoluteString, "https://auth.xiaoya.pro/api/ali_open/refresh")
+        XCTAssertEqual(client.requests[1].url?.absoluteString, "https://auth.xiaoya.pro/api/ali_open/refresh")
         let saved = try XCTUnwrap(try store.data(for: "ali"))
         let savedDict = try XCTUnwrap(JSONSerialization.jsonObject(with: saved) as? [String: Any])
         XCTAssertEqual(savedDict["access_token"] as? String, "new")

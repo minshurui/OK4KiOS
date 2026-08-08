@@ -78,7 +78,8 @@ final class BaiduDriveAdapterTests: XCTestCase {
     func testStatusLoggedInWithValidCookie() async throws {
         let store = MemoryCredentialStore()
         let profile = Data(#"{"username":"testuser"}"#.utf8)
-        let (adapter, _) = makeAdapter(responses: [(200, profile)], store: store)
+        // loginWithCookie 用 1 个 profile，status 再请求 1 个
+        let (adapter, _) = makeAdapter(responses: [(200, profile), (200, profile)], store: store)
 
         try await adapter.loginWithCookie("BDUSS=abc123")
         let status = try await adapter.status()
@@ -100,7 +101,8 @@ final class BaiduDriveAdapterTests: XCTestCase {
     func testRefreshWithValidCookie() async throws {
         let store = MemoryCredentialStore()
         let profile = Data(#"{"username":"testuser"}"#.utf8)
-        let (adapter, _) = makeAdapter(responses: [(200, profile)], store: store)
+        // loginWithCookie + refresh(profile) + status(profile) 共 3 个请求
+        let (adapter, _) = makeAdapter(responses: [(200, profile), (200, profile), (200, profile)], store: store)
 
         try await adapter.loginWithCookie("BDUSS=abc123")
         try await adapter.refresh()
