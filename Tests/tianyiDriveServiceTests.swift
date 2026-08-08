@@ -48,7 +48,7 @@ final class TianyiDriveServiceTests: XCTestCase {
 
     func testPollPending() async throws {
         let qr = Data(#"{"result":0,"qrCode":"tianyi-qr","sessionKey":"sk1","shortToken":"st1"}"#.utf8)
-        let pending = Data(#"{"result":100}"#.utf8)
+        let pending = Data(#"{"result":1}"#.utf8)
         let (adapter, _) = makeAdapter(responses: [(200, qr), (200, pending)], store: MemoryCredentialStore())
         let session = try await adapter.beginLogin()
         let first = try await adapter.poll(session)

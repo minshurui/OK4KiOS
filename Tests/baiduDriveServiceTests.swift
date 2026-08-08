@@ -6,6 +6,7 @@ import XCTest
 final class BaiduMockHTTPClient: BaiduHTTPClientProtocol {
     var requests: [URLRequest] = []
     var responses: [(Int, Data)]
+    var responseHeaders: [String: String] = [:]
     private var index = 0
 
     init(responses: [(Int, Data)]) {
@@ -19,7 +20,7 @@ final class BaiduMockHTTPClient: BaiduHTTPClientProtocol {
         }
         let (statusCode, data) = responses[index]
         index += 1
-        let response = HTTPURLResponse(url: request.url!, statusCode: statusCode, httpVersion: nil, headerFields: nil)!
+        let response = HTTPURLResponse(url: request.url!, statusCode: statusCode, httpVersion: nil, headerFields: responseHeaders)!
         return (data, response)
     }
 }

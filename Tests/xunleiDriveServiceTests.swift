@@ -13,7 +13,7 @@ final class XunleiDriveAdapterTests: XCTestCase {
 
     func testBeginLoginCreatesDeviceCodeSession() async throws {
         let store = MemoryCredentialStore()
-        let device = Data(#"{"device_code":"dc1","user_code":"u1","verification_uri_complete":"https://pan.xunlei.com/scan","interval":3,"expires_in":300}"#.utf8)
+        let device = Data(#"{"device_code":"dc1","user_code":"u1","verification_uri":"https://pan.xunlei.com/scan","verification_uri_complete":"https://pan.xunlei.com/scan","interval":3,"expires_in":300}"#.utf8)
         let (adapter, _) = makeAdapter(responses: [(200, device)], store: store)
         let session = try await adapter.beginLogin()
         XCTAssertTrue(session.deviceCode.contains("dc1"))
@@ -21,7 +21,7 @@ final class XunleiDriveAdapterTests: XCTestCase {
 
     func testPollPendingThenAuthorized() async throws {
         let store = MemoryCredentialStore()
-        let device = Data(#"{"device_code":"dc1","user_code":"u1","verification_uri_complete":"https://pan.xunlei.com/scan","interval":3,"expires_in":300}"#.utf8)
+        let device = Data(#"{"device_code":"dc1","user_code":"u1","verification_uri":"https://pan.xunlei.com/scan","verification_uri_complete":"https://pan.xunlei.com/scan","interval":3,"expires_in":300}"#.utf8)
         let pending = Data(#"{"error":"authorization_pending"}"#.utf8)
         let authorized = Data(#"{"access_token":"a","refresh_token":"r","token_type":"Bearer"}"#.utf8)
         let (adapter, _) = makeAdapter(responses: [(200, device), (200, pending), (200, authorized)], store: store)
