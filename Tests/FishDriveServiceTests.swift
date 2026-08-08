@@ -43,9 +43,13 @@ final class FishDriveRegistryTests: XCTestCase {
 
     func testUnverifiedDrivesAreHonestAboutPendingProtocol() async throws {
         // 9 网盘已实现（DeepSeek worker + 取证端点）：扫码支持/协议证据完整，仅移动云盘扫码仍未取证。
-        for key in ["quark", "uc", "tianyi", "ali", "baidu", "xunlei", "pan123", "pan115"] {
+        for key in ["quark", "uc", "ali", "pan123", "pan115"] {
             let service = FishDriveRegistry.service(for: key)
             XCTAssertTrue(service.supportsScanLogin, "\(key) 已取证扫码端点应支持扫码")
+        }
+        // 百度=手动 Cookie；天翼/迅雷扫码适配待接入（凭证/状态/清理已实现）
+        for key in ["baidu", "tianyi", "xunlei"] {
+            XCTAssertFalse(FishDriveRegistry.service(for: key).supportsScanLogin, "\(key) 扫码尚未支持")
         }
         // 移动云盘扫码协议未取证：扫码动作必须诚实抛错。
         let yidong = FishDriveRegistry.service(for: "yidong")

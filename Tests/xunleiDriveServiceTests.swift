@@ -40,7 +40,7 @@ final class XunleiDriveAdapterTests: XCTestCase {
         do {
             try await adapter.refresh()
             XCTFail("无凭据 refresh 必须抛 notLoggedIn")
-        } catch FishDriveError.notLoggedIn { }
+        } catch XunleiAuthError.notLoggedIn { } catch FishDriveError.notLoggedIn { }
     }
 
     func testStatusNotLoggedIn() async throws {
