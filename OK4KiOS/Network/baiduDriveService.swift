@@ -6,8 +6,12 @@ import Foundation
 // Android 核心委托 C0243g + W0/A 类，登录方式：扫码登录 K2(17) + 手动 Cookie (r1)
 // 存储方式：Cookie 持久化（非 OAuth token）
 //
-// 注意：扫码/轮询端点无法从 smali 完整取证，本文件仅实现 Cookie 手动登录所需的
-// 网络请求（用户信息获取），扫码相关端点诚实保留 pending（抛 FishDriveError.protocolPending）。
+// 扫码协议端点（Go 参考实现）：
+//   - 创建二维码 GET https://passport.baidu.com/v2/api/getqrcode?lp=pc&apiver=v3 -> {data:{img,sign}}
+//   - 轮询 GET https://passport.baidu.com/v2/api/qrcode/{sign}?lp=pc&apiver=v3
+//     status: 0 未扫 / 1 已扫待确认 / 2 已确认 / 3 过期
+//   - 登录 GET https://passport.baidu.com/v3/api/login?sign=..&u=http://pan.baidu.com/disk/home
+//     （重定向链写入 BDUSS）
 
 // MARK: - 百度网盘凭据（Cookie 持久化）
 
@@ -78,13 +82,15 @@ struct BaiduCredential: Equatable, Sendable {
             }
         }
         guard !cookieDict.isEmpty else { throw BaiduAuthError.invalidResponse }
-        let payload: [String: Any] = ["cookies": cookieDict]
-        let data = try JSONSerialization.data(withJSONObject: payload)
+        
+        // 构造一个最小响应，让 init(responseData:) 能解析
+        let minimalResponse: [String: Any] = ["cookies": cookieDict]
+        let data = try JSONSerialization.data(withJSONObject: minimalResponse)
         try self.init(responseData: data, fallback: fallback)
     }
 
-    func mergingProfile(_ responseData: Data) throws -> BaiduCredential {
-        try BaiduCredential(responseData: responseData, fallback: self)
+    var cookieHeader: String {
+        cookies.map { "\($0.key)=\($0.value)" }.joined(separator: "; ")
     }
 
     private static func dictionary(_ data: Data) throws -> [String: Any] {
@@ -94,51 +100,96 @@ struct BaiduCredential: Equatable, Sendable {
         return value
     }
 
-    private static func firstString(in objects: [[String: Any]], keys: [String]) -> String? {
-        for object in objects {
-            for key in keys {
-                if let value = object[key] as? String, let value = value.nonempty { return value }
-            }
-        }
-        return nil
-    }
-
-    private static func deepMerge(_ base: [String: Any], _ update: [String: Any]) -> [String: Any] {
+    private static func deepMerge(_ base: [String: Any], _ override: [String: Any]) -> [String: Any] {
         var result = base
-        for (key, value) in update {
-            if let old = result[key] as? [String: Any], let new = value as? [String: Any] {
-                result[key] = deepMerge(old, new)
+        for (key, value) in override {
+            if let dict = value as? [String: Any], let baseDict = result[key] as? [String: Any] {
+                result[key] = deepMerge(baseDict, dict)
             } else {
                 result[key] = value
             }
         }
         return result
     }
+
+    private static func firstString(in sources: [[String: Any]], keys: [String]) -> String? {
+        for source in sources {
+            for key in keys {
+                if let value = source[key] as? String, !value.isEmpty {
+                    return value
+                }
+            }
+        }
+        return nil
+    }
 }
 
-// MARK: - 百度网盘错误
+// MARK: - 百度扫码会话
 
-enum BaiduAuthError: LocalizedError, Equatable {
+struct BaiduQRCodeSession: Equatable, Sendable {
+    let sign: String
+    let qrImage: String
+    let interval: TimeInterval
+    let timeout: TimeInterval
+    
+    init(sign: String, qrImage: String, interval: TimeInterval = 3, timeout: TimeInterval = 180) {
+        self.sign = sign
+        self.qrImage = qrImage
+        self.interval = interval
+        self.timeout = timeout
+    }
+    
+    init?(dictionary: [String: Any]) {
+        guard let sign = dictionary["sign"] as? String,
+              let qrImage = dictionary["qrImage"] as? String else {
+            return nil
+        }
+        self.sign = sign
+        self.qrImage = qrImage
+        self.interval = (dictionary["interval"] as? TimeInterval) ?? 3
+        self.timeout = (dictionary["timeout"] as? TimeInterval) ?? 180
+    }
+    
+    var dictionary: [String: Any] {
+        ["sign": sign, "qrImage": qrImage, "interval": interval, "timeout": timeout]
+    }
+}
+
+// MARK: - 百度认证错误
+
+enum BaiduAuthError: Error, LocalizedError {
     case invalidResponse
-    case server(String)
-    case timeout
-    case cancelled
+    case networkError(String)
+    case qrExpired
+    case qrPending
+    case qrConfirmed
+    case noBDUSSCookie
+    case invalidCookie
     case notLoggedIn
-    case missingCookie
-
+    
     var errorDescription: String? {
         switch self {
-        case .invalidResponse: return "百度网盘响应无效"
-        case .server(let text): return "百度网盘请求失败：\(text)"
-        case .timeout: return "百度网盘请求超时"
-        case .cancelled: return "百度网盘请求已取消"
-        case .notLoggedIn: return "百度网盘未登录，请先登录"
-        case .missingCookie: return "缺少百度网盘 Cookie，请重新登录"
+        case .invalidResponse:
+            return "百度响应格式无效"
+        case .networkError(let message):
+            return "网络错误: \(message)"
+        case .qrExpired:
+            return "二维码已过期，请重新扫码"
+        case .qrPending:
+            return "等待扫码确认..."
+        case .qrConfirmed:
+            return "扫码已确认，正在登录..."
+        case .noBDUSSCookie:
+            return "未获取到 BDUSS Cookie"
+        case .invalidCookie:
+            return "Cookie 无效"
+        case .notLoggedIn:
+            return "未登录"
         }
     }
 }
 
-// MARK: - HTTP 客户端协议
+// MARK: - 百度 HTTP 客户端
 
 protocol BaiduHTTPClientProtocol {
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse)
@@ -146,41 +197,213 @@ protocol BaiduHTTPClientProtocol {
 
 struct BaiduHTTPClient: BaiduHTTPClientProtocol {
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        let result: (Data, URLResponse) = try await withCheckedThrowingContinuation { continuation in
-            URLSession.shared.dataTask(with: request) { data, response, error in
-                if let error { continuation.resume(throwing: error) }
-                else if let data, let response { continuation.resume(returning: (data, response)) }
-                else { continuation.resume(throwing: URLError(.badServerResponse)) }
-            }.resume()
-        }
-        guard let response = result.1 as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-        return (result.0, response)
+        let result: (Data, URLResponse) = try await URLSession.shared.data(for: request)
+        guard let http = result.1 as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        return (result.0, http)
     }
 }
 
-// MARK: - 百度网盘认证服务
+// MARK: - 百度认证服务
 
 struct BaiduAuthService {
-    // 从 Docs/baidu-strings.txt 取证的用户信息端点
-    static let userInfoBase = "https://pan.baidu.com"
+    private let passportBase = "https://passport.baidu.com"
+    private let panBase = "https://pan.baidu.com"
     private let client: BaiduHTTPClientProtocol
-
+    
     init(client: BaiduHTTPClientProtocol = BaiduHTTPClient()) {
         self.client = client
     }
-
-    /// 获取用户信息（使用 Cookie 认证）
-    /// 端点：/api/getuserinfo（从 baidu-strings.txt 取证）
-    func profile(for credential: BaiduCredential) async throws -> BaiduCredential {
-        var request = URLRequest(url: URL(string: "\(Self.userInfoBase)/api/getuserinfo")!)
+    
+    // MARK: - 创建二维码
+    
+    func createQRCode() async throws -> BaiduQRCodeSession {
+        let url = URL(string: "\(passportBase)/v2/api/getqrcode?lp=pc&apiver=v3")!
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        let cookieHeader = credential.cookies.map { "\($0.key)=\($0.value)" }.joined(separator: "; ")
-        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
-
+        
         let (data, response) = try await client.data(for: request)
-        guard response.statusCode == 200 else {
-            throw BaiduAuthError.server("HTTP \(response.statusCode)")
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw BaiduAuthError.networkError("HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
         }
-        return try credential.mergingProfile(data)
+        
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let errno = json["errno"] as? Int, errno == 0,
+              let dataObj = json["data"] as? [String: Any],
+              let img = dataObj["img"] as? String,
+              let sign = dataObj["sign"] as? String else {
+            throw BaiduAuthError.invalidResponse
+        }
+        
+        return BaiduQRCodeSession(sign: sign, qrImage: img)
+    }
+    
+    // MARK: - 轮询二维码状态
+    
+    enum QRCodeStatus: Equatable {
+        case pending
+        case confirmed
+        case expired
+        case unknown(Int)
+    }
+    
+    func pollQRCode(sign: String) async throws -> QRCodeStatus {
+        let url = URL(string: "\(passportBase)/v2/api/qrcode/\(sign)?lp=pc&apiver=v3")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        
+        let (data, response) = try await client.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw BaiduAuthError.networkError("HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
+        }
+        
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let dataObj = json["data"] as? [String: Any],
+              let status = dataObj["status"] as? Int else {
+            throw BaiduAuthError.invalidResponse
+        }
+        
+        switch status {
+        case 0, 1:
+            return .pending
+        case 2:
+            return .confirmed
+        case 3:
+            return .expired
+        default:
+            return .unknown(status)
+        }
+    }
+    
+    // MARK: - 完成登录（获取 BDUSS Cookie）
+    
+    func finishLogin(sign: String) async throws -> BaiduCredential {
+        let encodedURL = "http%3A%2F%2Fpan.baidu.com%2Fdisk%2Fhome"
+        let url = URL(string: "\(passportBase)/v3/api/login?sign=\(sign)&u=\(encodedURL)&apiver=v3&lp=pc")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        
+        // 不跟随重定向，手动收集 Set-Cookie
+        let (_, response) = try await client.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw BaiduAuthError.networkError("无效响应")
+        }
+        
+        var allCookies: [String: String] = [:]
+        
+        // 收集当前响应的 Set-Cookie
+        if let setCookies = http.value(forHTTPHeaderField: "Set-Cookie") {
+            parseCookies(setCookies, into: &allCookies)
+        }
+        
+        // 如果有重定向，跟随并收集
+        if let location = http.value(forHTTPHeaderField: "Location"),
+           let redirectURL = URL(string: location, relativeTo: url) {
+            var redirectRequest = URLRequest(url: redirectURL)
+            redirectRequest.httpMethod = "GET"
+            redirectRequest.setValue(allCookies.map { "\($0.key)=\($0.value)" }.joined(separator: "; "), forHTTPHeaderField: "Cookie")
+            
+            let (_, redirectResponse) = try await client.data(for: redirectRequest)
+            if let redirectHTTP = redirectResponse as? HTTPURLResponse {
+                if let setCookies = redirectHTTP.value(forHTTPHeaderField: "Set-Cookie") {
+                    parseCookies(setCookies, into: &allCookies)
+                }
+            }
+        }
+        
+        guard let bduss = allCookies["BDUSS"], !bduss.isEmpty else {
+            throw BaiduAuthError.noBDUSSCookie
+        }
+        
+        // 构造凭据
+        let cookieString = allCookies.map { "\($0.key)=\($0.value)" }.joined(separator: "; ")
+        return try BaiduCredential(cookieString: cookieString)
+    }
+    
+    private func parseCookies(_ cookieHeader: String, into dict: inout [String: String]) {
+        for pair in cookieHeader.split(separator: ";") {
+            let parts = pair.split(separator: "=", maxSplits: 1)
+            if parts.count == 2 {
+                let key = String(parts[0]).trimmingCharacters(in: .whitespaces)
+                let value = String(parts[1]).trimmingCharacters(in: .whitespaces)
+                dict[key] = value
+            }
+        }
+    }
+    
+    // MARK: - 获取用户信息
+    
+    func fetchUserInfo(cookie: String) async throws -> BaiduCredential {
+        let url = URL(string: "\(panBase)/api/user/getinfo")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue(cookie, forHTTPHeaderField: "Cookie")
+        request.setValue("https://pan.baidu.com/", forHTTPHeaderField: "Referer")
+        
+        let (data, response) = try await client.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw BaiduAuthError.networkError("HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
+        }
+        
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let errno = json["errno"] as? Int, errno == 0 else {
+            throw BaiduAuthError.invalidCookie
+        }
+        
+        // 合并用户信息
+        var userInfo = json
+        userInfo["cookie"] = cookie
+        let userData = try JSONSerialization.data(withJSONObject: userInfo)
+        return try BaiduCredential(responseData: userData)
+    }
+}
+
+// MARK: - 百度会话管理
+
+final class BaiduSession {
+    static let shared = BaiduSession()
+    
+    private let credentialKey = "baidu_credential"
+    private let userDefaults: UserDefaults
+    
+    init(userDefaults: UserDefaults = .standard) {
+        self.userDefaults = userDefaults
+    }
+    
+    func saveCredential(_ credential: BaiduCredential) throws {
+        userDefaults.set(credential.raw, forKey: credentialKey)
+    }
+    
+    func loadCredential() throws -> BaiduCredential? {
+        guard let data = userDefaults.data(forKey: credentialKey) else {
+            return nil
+        }
+        return try BaiduCredential(responseData: data)
+    }
+    
+    func clearCredential() {
+        userDefaults.removeObject(forKey: credentialKey)
+    }
+    
+    func validatedCredential() async throws -> BaiduCredential {
+        guard let credential = try loadCredential() else {
+            throw BaiduAuthError.notLoggedIn
+        }
+        
+        // 验证凭据有效性
+        let auth = BaiduAuthService()
+        do {
+            let refreshed = try await auth.fetchUserInfo(cookie: credential.cookieHeader)
+            try saveCredential(refreshed)
+            return refreshed
+        } catch {
+            throw BaiduAuthError.invalidCookie
+        }
+    }
+}
+
+extension String {
+    var nonempty: String? {
+        let value = trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : value
     }
 }

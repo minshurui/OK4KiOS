@@ -5,13 +5,12 @@ import Foundation
 /// 完整生命周期：创建→轮询→授权保存→刷新→退出。
 /// 动态 JSON 无损保留未知字段（XunleiCredential 深合并），Keychain 只替代 Android
 /// 存储层，不改变 Android 登录交互。
-/// 注意：扫码创建/轮询/刷新/资料端点已取证，但请求体与响应字段未完整取证，
-/// 因此 beginLogin/poll/refresh 诚实抛 protocolPending，不伪造可用。
+/// 扫码创建/轮询/刷新/资料端点已取证，请求体与响应字段严格按 Go 参考实现。
 struct XunleiDriveServiceAdapter: FishDriveService {
     let driveKey = "xunlei"
     let displayName = "迅雷网盘"
-    let supportsScanLogin = false
-    let protocolEvidence = "端点已取证：auth xluser-ssl.xunlei.com/v1/auth/token；扫码(K2(10)) / Token JSON(K2(11))；用户 /drive/v1/user/me；文件 /drive/v1/files?parent_id=；转存 /drive/v1/share/restore；验证码 /v1/shield/captcha/init。请求体与响应字段未完整取证，登录协议 pending"
+    let supportsScanLogin = true
+    let protocolEvidence = "端点已取证：auth xluser-ssl.xunlei.com/v1/auth/token；扫码(K2(10)) / Token JSON(K2(11))；用户 /v1/user/me；文件 /drive/v1/files?parent_id=；转存 /drive/v1/share/restore；验证码 /v1/shield/captcha/init。请求体与响应字段严格按 Go 参考实现"
     let threadOptions: [FishThreadOption] = FishThreadOption.all
 
     private let session: XunleiSession
@@ -38,15 +37,48 @@ struct XunleiDriveServiceAdapter: FishDriveService {
     }
 
     func beginLogin() async throws -> FishScanSession {
-        // Android L1.p1() 扫码创建：K2(10) 表示扫码登录方式
-        // 请求体字段未完整取证，诚实抛 protocolPending
-        throw FishDriveError.protocolPending("迅雷扫码创建请求体字段未完整取证（Android L1.p1() K2(10)），无法构造请求")
+        let authorization = try await auth.createQrcodeLogin()
+        let qrContent = authorization.verificationURIComplete?.absoluteString ?? authorization.verificationURI.absoluteString
+        return FishScanSession(
+            qrPayload: qrContent,
+            deviceCode: authorization.deviceCode,
+            expiresIn: authorization.expiresIn,
+            interval: max(1, authorization.interval),
+            openURL: authorization.verificationURIComplete ?? authorization.verificationURI
+        )
     }
 
     func poll(_ session: FishScanSession) async throws -> FishScanResult {
-        // Android L1.p1() 轮询：K2(10) 扫码登录轮询
-        // 轮询端点与成功判定字段未完整取证，诚实抛 protocolPending
-        throw FishDriveError.protocolPending("迅雷扫码轮询端点与成功判定字段未完整取证（Android L1.p1() K2(10)），无法构造请求")
+        guard let deviceCode = session.deviceCode else {
+            throw FishDriveError.protocolPending("缺少 device_code，无法轮询")
+        }
+
+        do {
+            let credential = try await auth.pollQrcodeLogin(deviceCode: deviceCode, clientID: auth.clientID)
+            // 获取用户信息完善资料
+            let fullCredential = try await auth.userInfo(credential: credential)
+            try await self.session.save(fullCredential)
+            let name = fullCredential.displayName
+            return FishScanResult(
+                success: true,
+                credential: FishCredential(
+                    driveKey: driveKey,
+                    accessToken: fullCredential.accessToken,
+                    refreshToken: fullCredential.refreshToken,
+                    displayName: name,
+                    raw: fullCredential.raw
+                ),
+                displayName: name
+            )
+        } catch XunleiAuthError.pending {
+            return FishScanResult(success: false, pending: true, displayName: nil)
+        } catch XunleiAuthError.expired {
+            return FishScanResult(success: false, pending: false, displayName: nil, errorMessage: "扫码已过期，请重新扫码")
+        } catch XunleiAuthError.serverError(let message) {
+            return FishScanResult(success: false, pending: false, displayName: nil, errorMessage: "扫码失败：\(message)")
+        } catch {
+            return FishScanResult(success: false, pending: false, displayName: nil, errorMessage: "扫码失败，请重试")
+        }
     }
 
     /// 刷新：validatedCredential 内部按 Android 顺序执行 profile 校验 → refresh_token
@@ -58,7 +90,4 @@ struct XunleiDriveServiceAdapter: FishDriveService {
     func logout() async throws {
         try await session.logout()
     }
-
-    func currentThread() -> String { threadStore.value(for: driveKey) }
-    func setThread(_ id: String) { threadStore.set(id, for: driveKey) }
 }

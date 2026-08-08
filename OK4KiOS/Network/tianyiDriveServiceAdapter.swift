@@ -1,14 +1,14 @@
 import Foundation
 
-/// 天翼云盘服务适配器：把 TianyiAuthService（用户信息 / 空间信息 / 家庭列表）与
+/// 天翼云盘服务适配器：把 TianyiAuthService（扫码创建/轮询/用户信息）与
 /// TianyiSession（Keychain 持久化）包装成统一的 FishDriveService。
 /// 登录交互与 Android 一致：扫码页走 FishScanLoginView（FishConfigSectionView 已接 scanLogin action）。
-/// 注意：扫码创建/轮询端点尚未从 Android 完整取证，beginLogin/poll 诚实抛 protocolPending。
+/// 端点/请求体/响应字段严格按 Go 参考实现（fishconfig.Tianyi）。
 struct TianyiDriveServiceAdapter: FishDriveService {
     let driveKey = "tianyi"
     let displayName = "天翼云盘"
-    let supportsScanLogin = false
-    let protocolEvidence = "部分取证：用户信息 /api/portal/v2/getUserBriefInfo.action、空间 /api/portal/getUserSizeInfo.action、家庭 /family/manage/getFamilyList.action；扫码创建/轮询端点待 smali 方法级分析（L1.l1() 已定位 F2(27)/K2(7)/K2(16)）"
+    let supportsScanLogin = true
+    let protocolEvidence = "已取证：GET /open/user/getQrCode.action 创建二维码 → POST /open/user/qrCodeLogin.action 轮询 → GET /open/user/getUserBriefInfo.action?token= 完成登录（Docs/NetdiskEndpointsEvidence.md + Go 参考实现）"
     let threadOptions: [FishThreadOption] = FishThreadOption.all
 
     private let session: TianyiSession
@@ -35,11 +35,82 @@ struct TianyiDriveServiceAdapter: FishDriveService {
     }
 
     func beginLogin() async throws -> FishScanSession {
-        throw FishDriveError.protocolPending("天翼云盘扫码创建端点未完整取证（L1.l1() 已定位 F2(27) 扫码入口，但请求体/响应字段待 smali 分析），暂时无法扫码")
+        let qrSession = try await auth.createQRCode()
+        
+        // 将轮询必需参数打包进 deviceCode（JSON 编码）
+        let sessionPayload: [String: String] = [
+            "session_key": qrSession.sessionKey,
+            "short_token": qrSession.shortToken,
+            "app_id": qrSession.appId
+        ]
+        guard let payloadData = try? JSONSerialization.data(withJSONObject: sessionPayload),
+              let deviceCode = String(data: payloadData, encoding: .utf8) else {
+            throw FishDriveError.protocolPending("无法编码扫码会话参数")
+        }
+        
+        return FishScanSession(
+            qrPayload: qrSession.qrContent,
+            deviceCode: deviceCode,
+            expiresIn: qrSession.timeout,
+            interval: max(1, qrSession.interval),
+            openURL: nil
+        )
     }
 
     func poll(_ session: FishScanSession) async throws -> FishScanResult {
-        throw FishDriveError.protocolPending("天翼云盘轮询端点未完整取证，不能伪造授权结果")
+        // 从 deviceCode 解码轮询参数
+        guard let payloadData = session.deviceCode.data(using: .utf8),
+              let payload = try? JSONSerialization.jsonObject(with: payloadData) as? [String: String],
+              let sessionKey = payload["session_key"],
+              let shortToken = payload["short_token"],
+              let appId = payload["app_id"] else {
+            throw FishDriveError.protocolPending("扫码会话参数无效")
+        }
+        
+        let pollResponse = try await auth.pollQRCodeLogin(sessionKey: sessionKey, shortToken: shortToken, appId: appId)
+        
+        if pollResponse.isSuccess {
+            guard let token = pollResponse.token else {
+                throw FishDriveError.protocolPending("扫码成功但缺少 token")
+            }
+            
+            // 完成登录：用 token 换取会话 Cookie
+            let (cookie, userInfo) = try await auth.finishLogin(token: token)
+            
+            // 构造凭据数据
+            var credentialData: [String: Any] = [
+                "session_key": sessionKey,
+                "token": token
+            ]
+            if !cookie.isEmpty {
+                credentialData["cookie"] = cookie
+            }
+            // 合并用户信息
+            for (key, value) in userInfo {
+                credentialData[key] = value
+            }
+            
+            let data = try JSONSerialization.data(withJSONObject: credentialData)
+            let credential = try TianyiCredential(responseData: data)
+            try session.saveCredential(credential)
+            
+            let name = credential.displayName
+            return FishScanResult(
+                success: true,
+                credential: FishCredential(
+                    driveKey: driveKey,
+                    displayName: name ?? "天翼云盘",
+                    detail: "已登录" + (name.map { " · \($0)" } ?? "")
+                )
+            )
+        } else if pollResponse.isPending {
+            return FishScanResult(success: false, pending: true, message: "等待扫码确认...")
+        } else if pollResponse.isExpired {
+            throw FishDriveError.protocolPending("二维码已过期，请重新扫码")
+        } else {
+            let message = pollResponse.message ?? pollResponse.errorDescription ?? "扫码失败"
+            throw FishDriveError.protocolPending("天翼扫码失败: \(message)")
+        }
     }
 
     /// 刷新：validatedCredential 内部按 Android 顺序执行用户信息校验 → 刷新 → 再次校验，并在 Keychain 持久化。

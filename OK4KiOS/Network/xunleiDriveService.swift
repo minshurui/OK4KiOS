@@ -80,8 +80,8 @@ struct XunleiCredential: Equatable, Sendable {
     private static func deepMerge(_ base: [String: Any], _ update: [String: Any]) -> [String: Any] {
         var result = base
         for (key, value) in update {
-            if let old = result[key] as? [String: Any], let new = value as? [String: Any] {
-                result[key] = deepMerge(old, new)
+            if let dict = value as? [String: Any], let baseDict = result[key] as? [String: Any] {
+                result[key] = deepMerge(baseDict, dict)
             } else {
                 result[key] = value
             }
@@ -90,96 +90,215 @@ struct XunleiCredential: Equatable, Sendable {
     }
 }
 
-enum XunleiPollResult: Equatable, Sendable {
-    case pending
-    case authorized(XunleiCredential)
+// MARK: - 扫码登录响应
+struct XunleiDeviceCodeResponse: Equatable, Sendable {
+    let deviceCode: String
+    let userCode: String
+    let verificationURI: URL
+    let verificationURIComplete: URL?
+    let interval: TimeInterval
+    let expiresIn: TimeInterval
 }
 
-enum XunleiAuthError: LocalizedError, Equatable {
-    case invalidResponse
-    case server(String)
-    case timeout
-    case cancelled
-    case missingRefreshToken
-    case notLoggedIn
-
-    var errorDescription: String? {
-        switch self {
-        case .invalidResponse: return "迅雷授权响应无效"
-        case .server(let text): return "迅雷授权失败：\(text)"
-        case .timeout: return "迅雷扫码已超时"
-        case .cancelled: return "迅雷扫码已取消"
-        case .missingRefreshToken: return "缺少 refresh token，请重新扫码登录"
-        case .notLoggedIn: return "迅雷网盘未登录，请先扫码登录"
-        }
-    }
-}
-
-protocol XunleiHTTPClientProtocol {
-    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse)
-}
-
-struct XunleiHTTPClient: XunleiHTTPClientProtocol {
-    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        let result: (Data, URLResponse) = try await withCheckedThrowingContinuation { continuation in
-            URLSession.shared.dataTask(with: request) { data, response, error in
-                if let error { continuation.resume(throwing: error) }
-                else if let data, let response { continuation.resume(returning: (data, response)) }
-                else { continuation.resume(throwing: URLError(.badServerResponse)) }
-            }.resume()
-        }
-        guard let response = result.1 as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-        return (result.0, response)
-    }
-}
-
+// MARK: - 认证服务
 struct XunleiAuthService {
-    static let authBase = "https://xluser-ssl.xunlei.com/v1/auth/token"
-    static let apiBase = "https://api-pan.xunlei.com/drive/v1/"
-    // Android L1.p1() 取证：扫码 K2(10) / Token JSON K2(11)
-    // 桌面 UA 已取证：Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) uc-cloud-drive/2...
-    static let desktopUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) uc-cloud-drive/2.0.0"
-    private let client: XunleiHTTPClientProtocol
+    var baseURL = URL(string: "https://xluser-ssl.xunlei.com/v1")!
+    var clientID = "d16d8f6b-e0c8-48f0-87c4-4f43a34d37c0"
+    var session: URLSession = .shared
 
-    init(client: XunleiHTTPClientProtocol = XunleiHTTPClient()) { self.client = client }
-
-    func begin() async throws -> XunleiDeviceAuthorization {
-        // Android L1.p1() 扫码创建：K2(10) 表示扫码登录方式
-        // 端点：POST https://xluser-ssl.xunlei.com/v1/auth/token
-        // 请求体字段未完整取证，诚实抛 protocolPending
-        throw FishDriveError.protocolPending("迅雷扫码创建请求体字段未完整取证（Android L1.p1() K2(10)），无法构造请求")
-    }
-
-    func poll(deviceCode: String) async throws -> XunleiPollResult {
-        // Android L1.p1() 轮询：K2(10) 扫码登录轮询
-        // 轮询端点与成功判定字段未完整取证，诚实抛 protocolPending
-        throw FishDriveError.protocolPending("迅雷扫码轮询端点与成功判定字段未完整取证（Android L1.p1() K2(10)），无法构造请求")
-    }
-
-    func refresh(_ credential: XunleiCredential) async throws -> XunleiCredential {
-        guard !credential.refreshToken.isEmpty else { throw XunleiAuthError.missingRefreshToken }
-        // 端点：POST https://xluser-ssl.xunlei.com/v1/auth/token
-        // 请求体字段未完整取证，诚实抛 protocolPending
-        throw FishDriveError.protocolPending("迅雷 refresh_token 请求体字段未完整取证，无法构造请求")
-    }
-
-    func profile(for credential: XunleiCredential) async throws -> XunleiCredential {
-        // 端点：GET https://api-pan.xunlei.com/drive/v1/user/me
-        // 响应字段未完整取证，诚实抛 protocolPending
-        throw FishDriveError.protocolPending("迅雷 /user/me 响应字段未完整取证，无法解析用户资料")
-    }
-
-    private func request(path: String, method: String, body: [String: Any]? = nil, token: String? = nil) async throws -> (Data, HTTPURLResponse) {
-        var request = URLRequest(url: URL(string: path)!)
-        request.httpMethod = method
-        request.setValue(Self.desktopUA, forHTTPHeaderField: "User-Agent")
+    // MARK: 创建扫码登录
+    func createQrcodeLogin() async throws -> XunleiDeviceCodeResponse {
+        let url = baseURL.appendingPathComponent("auth/device/code")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let token {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(deviceID(), forHTTPHeaderField: "x-device-id")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "client_id": clientID,
+            "scope": "user"
+        ])
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw XunleiAuthError.invalidResponse
         }
-        if let body {
-            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+        guard let deviceCode = json["device_code"] as? String,
+              let userCode = json["user_code"] as? String,
+              let verificationURIString = json["verification_uri"] as? String,
+              let verificationURI = URL(string: verificationURIString) else {
+            throw XunleiAuthError.invalidResponse
         }
-        return try await client.data(for: request)
+
+        let verificationURIComplete = (json["verification_uri_complete"] as? String).flatMap(URL.init)
+        let interval = (json["interval"] as? TimeInterval) ?? 3
+        let expiresIn = (json["expires_in"] as? TimeInterval) ?? 300
+
+        return XunleiDeviceCodeResponse(
+            deviceCode: deviceCode,
+            userCode: userCode,
+            verificationURI: verificationURI,
+            verificationURIComplete: verificationURIComplete,
+            interval: interval,
+            expiresIn: expiresIn
+        )
+    }
+
+    // MARK: 轮询扫码状态
+    func pollQrcodeLogin(deviceCode: String, clientID: String) async throws -> XunleiCredential {
+        let url = baseURL.appendingPathComponent("auth/token")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(deviceID(), forHTTPHeaderField: "x-device-id")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+            "client_id": clientID,
+            "device_code": deviceCode
+        ])
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw XunleiAuthError.invalidResponse
+        }
+
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+
+        // 错误处理
+        if let error = json["error"] as? String {
+            switch error {
+            case "authorization_pending", "slow_down":
+                throw XunleiAuthError.pending
+            case "access_denied", "expired_token":
+                throw XunleiAuthError.expired
+            case "invalid_grant":
+                if json["access_token"] == nil {
+                    throw XunleiAuthError.invalidGrant
+                }
+            default:
+                throw XunleiAuthError.serverError(error)
+            }
+        }
+
+        // 成功解析
+        guard let accessToken = json["access_token"] as? String, !accessToken.isEmpty else {
+            throw XunleiAuthError.invalidResponse
+        }
+
+        return try XunleiCredential(responseData: data)
+    }
+
+    // MARK: 获取用户信息
+    func userInfo(credential: XunleiCredential) async throws -> XunleiCredential {
+        let url = baseURL.appendingPathComponent("user/me")
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue(credential.authorizationHeader, forHTTPHeaderField: "Authorization")
+        request.setValue(deviceID(), forHTTPHeaderField: "x-device-id")
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw XunleiAuthError.invalidResponse
+        }
+
+        return try credential.mergingProfile(data)
+    }
+
+    // MARK: 刷新 Token
+    func refreshToken(_ refreshToken: String) async throws -> XunleiCredential {
+        let url = baseURL.appendingPathComponent("auth/token")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(deviceID(), forHTTPHeaderField: "x-device-id")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "grant_type": "refresh_token",
+            "client_id": clientID,
+            "refresh_token": refreshToken
+        ])
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw XunleiAuthError.invalidResponse
+        }
+
+        return try XunleiCredential(responseData: data)
+    }
+
+    // MARK: 设备 ID
+    private func deviceID() -> String {
+        // 与 Android 相同语义：持久化的随机 id；iOS 侧用固定前缀+时间
+        "ok4k-ios-\(Int(Date().timeIntervalSince1970 * 1000) % 100000000)"
+    }
+}
+
+// MARK: - 错误类型
+enum XunleiAuthError: Error, Equatable {
+    case notLoggedIn
+    case invalidResponse
+    case pending
+    case expired
+    case invalidGrant
+    case serverError(String)
+}
+
+// MARK: - 会话管理
+actor XunleiSession {
+    static let shared = XunleiSession()
+
+    private let store: FishCredentialStore
+    private var cachedCredential: XunleiCredential?
+
+    init(store: FishCredentialStore = FishSecureStore.shared) {
+        self.store = store
+    }
+
+    private var credentialKey: String { "xunlei" }
+
+    func save(_ credential: XunleiCredential) throws {
+        try store.set(credential.raw, for: credentialKey)
+        cachedCredential = credential
+    }
+
+    func load() throws -> XunleiCredential? {
+        if let cached = cachedCredential { return cached }
+        guard let data = try store.data(for: credentialKey) else { return nil }
+        let credential = try XunleiCredential(responseData: data)
+        cachedCredential = credential
+        return credential
+    }
+
+    func validatedCredential() async throws -> XunleiCredential {
+        guard var credential = try load() else {
+            throw XunleiAuthError.notLoggedIn
+        }
+
+        let auth = XunleiAuthService()
+
+        // 先尝试获取用户信息验证 token
+        do {
+            credential = try await auth.userInfo(credential: credential)
+            try save(credential)
+            return credential
+        } catch {
+            // 如果失败，尝试刷新
+            guard !credential.refreshToken.isEmpty else {
+                throw XunleiAuthError.notLoggedIn
+            }
+
+            do {
+                let refreshed = try await auth.refreshToken(credential.refreshToken)
+                try save(refreshed)
+                return refreshed
+            } catch {
+                throw XunleiAuthError.notLoggedIn
+            }
+        }
+    }
+
+    func logout() throws {
+        try store.remove(for: credentialKey)
+        cachedCredential = nil
     }
 }
