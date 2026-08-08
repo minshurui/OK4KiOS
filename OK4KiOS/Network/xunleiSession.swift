@@ -19,7 +19,7 @@ actor XunleiSession {
         // Android persists token before /user/me. Preserve usable authorization if profile is unavailable.
         try store.set(credential.raw, for: "xunlei")
         do {
-            let profiled = try await service.profile(for: credential)
+            let profiled = try await service.userInfo(credential: credential)
             try store.set(profiled.raw, for: "xunlei")
             return profiled
         } catch {
@@ -31,21 +31,20 @@ actor XunleiSession {
         guard let stored = try storedCredential() else { throw XunleiAuthError.notLoggedIn }
         if !stored.accessToken.isEmpty {
             do {
-                let profiled = try await service.profile(for: stored)
+                let profiled = try await service.userInfo(credential: stored)
                 try store.set(profiled.raw, for: "xunlei")
                 return profiled
             } catch {
                 // Android j() falls through to refresh after a failed profile check.
             }
         }
-        let refreshed = try await service.refresh(stored)
-        try store.set(refreshed.raw, for: "xunlei")
+        // 迅雷无独立 refresh 端点（Go 参考）；用 userInfo 校验后返回已存凭据
         do {
-            let profiled = try await service.profile(for: refreshed)
+            let profiled = try await service.userInfo(credential: stored)
             try store.set(profiled.raw, for: "xunlei")
             return profiled
         } catch {
-            return refreshed
+            return stored
         }
     }
 
