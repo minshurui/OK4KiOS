@@ -48,20 +48,20 @@ struct UCDriveServiceAdapter: FishDriveService {
     func beginLogin() async throws -> FishScanSession {
         let authorization = try await service.createQrcodeLogin()
         return FishScanSession(
-            qrPayload: authorization.qrContent,
-            deviceCode: authorization.deviceCode,
+            qrPayload: authorization.qrcode,
+            deviceCode: authorization.pollKey,
             expiresIn: authorization.expiresIn,
             interval: max(1, authorization.interval),
-            openURL: authorization.openURL
+            openURL: URL(string: authorization.qrcode)
         )
     }
 
     func poll(_ session: FishScanSession) async throws -> FishScanResult {
         do {
-            let credential = try await service.pollQrcodeLogin(deviceCode: session.deviceCode)
+            let credential = try await service.pollQrcodeLogin(pollKey: session.deviceCode)
             try persist(credential)
             return .authorized
-        } catch UCAuthError.server(let message) where message == "pending" {
+        } catch UCAuthError.pending {
             return .pending
         }
     }
