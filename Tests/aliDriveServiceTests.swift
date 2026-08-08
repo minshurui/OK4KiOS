@@ -135,7 +135,7 @@ final class AliDriveAdapterTests: XCTestCase {
         let profileBody = Data(#"{"name":"User"}"#.utf8)
         let (adapter, _) = makeAdapter(responses: [(200, profileBody)], store: store)
         let status = try await adapter.status()
-        XCTAssertEqual(status.state, .loggedIn)
+        XCTAssertEqual(status.state, FishDriveStatus.State.loggedIn)
         XCTAssertEqual(status.displayName, "User")
     }
 }

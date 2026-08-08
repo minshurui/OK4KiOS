@@ -10,7 +10,7 @@ final class YiDongDriveServiceTests: XCTestCase {
                                                 threadStore: FishThreadStore(defaults: UserDefaults(suiteName: "test.yidong")!))
         try adapter.importCredential(jsonData: Data(#"{"authorization":"Bearer xyz","name":"User"}"#.utf8))
         let status = try await adapter.status()
-        XCTAssertEqual(status.state, .loggedIn)
+        XCTAssertEqual(status.state, FishDriveStatus.State.loggedIn)
         XCTAssertTrue(status.detail.contains("User"))
         // 登录后持久化保留未知字段
         let saved = try XCTUnwrap(try store.data(for: "yidong"))
@@ -42,6 +42,9 @@ final class YiDongDriveServiceTests: XCTestCase {
 private final class MockYiDongHTTPClient: YiDongHTTPClient {
     let responses: [(Int, Data)]
     private var index = 0
+    init(responses: [(Int, Data)]) {
+        self.responses = responses
+    }
     func data(for request: URLRequest) async throws -> (Data, URLResponse) {
         let (code, data) = responses[min(index, responses.count - 1)]
         index += 1

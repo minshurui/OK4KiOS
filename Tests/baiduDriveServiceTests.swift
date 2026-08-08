@@ -82,7 +82,7 @@ final class BaiduDriveAdapterTests: XCTestCase {
 
         try await adapter.loginWithCookie("BDUSS=abc123")
         let status = try await adapter.status()
-        XCTAssertEqual(status.state, .loggedIn)
+        XCTAssertEqual(status.state, FishDriveStatus.State.loggedIn)
         XCTAssertEqual(status.displayName, "testuser")
     }
 
@@ -105,7 +105,7 @@ final class BaiduDriveAdapterTests: XCTestCase {
         try await adapter.loginWithCookie("BDUSS=abc123")
         try await adapter.refresh()
         let status = try await adapter.status()
-        XCTAssertEqual(status.state, .loggedIn)
+        XCTAssertEqual(status.state, FishDriveStatus.State.loggedIn)
     }
 
     func testThreadOptions() {

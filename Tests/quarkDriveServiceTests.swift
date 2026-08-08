@@ -80,7 +80,7 @@ final class QuarkDriveAdapterTests: XCTestCase {
         let profile = Data(#"{"data":{"nickname":"User","phone":"13800138000"}}"#.utf8)
         let (adapter, _) = makeAdapter(responses: [(200, profile)], store: store)
         let status = try await adapter.status()
-        XCTAssertEqual(status.state, .loggedIn)
+        XCTAssertEqual(status.state, FishDriveStatus.State.loggedIn)
         XCTAssertEqual(status.displayName, "User")
     }
 

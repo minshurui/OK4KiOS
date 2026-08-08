@@ -75,7 +75,7 @@ final class TianyiDriveServiceTests: XCTestCase {
         let profile = Data(#"{"userNickName":"测试用户","userId":"123"}"#.utf8)
         let (adapter, client) = makeAdapter(responses: [(200, profile)], store: store)
         let status = try await adapter.status()
-        XCTAssertEqual(status.state, .loggedIn)
+        XCTAssertEqual(status.state, FishDriveStatus.State.loggedIn)
         XCTAssertEqual(status.displayName, "测试用户")
         XCTAssertEqual(client.requests.count, 1)
         XCTAssertTrue(client.requests[0].url?.absoluteString.contains("/api/portal/v2/getUserBriefInfo.action") ?? false)
