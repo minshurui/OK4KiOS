@@ -19,6 +19,26 @@ enum FishConfigSection: String, CaseIterable, Identifiable, Sendable {
     case ali = "4"
 
     var id: String { rawValue }
+
+    /// PROTOCOL.md 第 2 节：10 个网盘栏目对应的 driveKey（action 前缀）。
+    /// 其余栏目（控制台/系统/海报/弹幕/媒体库/B站）不是网盘入口。
+    var driveKey: String? {
+        switch self {
+        case .quark: return "quark"
+        case .uc: return "uc"
+        case .tianyi: return "tianyi"
+        case .yidong: return "yidong"
+        case .baidu: return "baidu"
+        case .xunlei: return "xunlei"
+        case .pan123: return "pan123"
+        case .pan115: return "pan115"
+        case .guangya: return "guangya"
+        case .ali: return "ali"
+        default: return nil
+        }
+    }
+
+    var isDriveSection: Bool { driveKey != nil }
     var title: String {
         switch self {
         case .console: return "控制台"
@@ -45,6 +65,31 @@ struct FishConfigAction: Identifiable, Hashable, Sendable {
     let id: String
     let title: String
     let detail: String
+}
+
+/// action 的分派类别：扫码/状态/线程/清理/其它。
+/// 依据 Android FishConfig 各栏目 action 命名约定（PROTOCOL.md 第 2 节）。
+enum FishConfigActionKind: Equatable, Sendable {
+    case status
+    case scanLogin
+    case thread
+    case clean
+    case other
+}
+
+extension String {
+    /// 按 action id 后缀判定分派类别（对 FishConfigAction 与网关均可用）。
+    var fishConfigActionKind: FishConfigActionKind {
+        if hasSuffix("_status") { return .status }
+        if hasSuffix("_scan") || hasSuffix("_login") { return .scanLogin }
+        if hasSuffix("_thread") { return .thread }
+        if hasSuffix("_clean") { return .clean }
+        return .other
+    }
+}
+
+extension FishConfigAction {
+    var kind: FishConfigActionKind { id.fishConfigActionKind }
 }
 
 enum FishConfigCatalog {

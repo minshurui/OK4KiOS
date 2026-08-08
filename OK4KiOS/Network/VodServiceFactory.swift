@@ -6,6 +6,10 @@ enum VodServiceFactory {
             let custom = TVBoxSite(key: "manual", name: "手动接口", type: settings.vodAPIType, api: settings.vodAPI)
             return TVBoxAPIService(site: custom)
         }
+        // FishConfig 是设置中心入口，永不构造点播服务；AppSettings 也会清除误选。
+        if site.isFeatureCenter {
+            return UnavailableVodService(error: SpiderError.featureCenter(site.name))
+        }
         if site.type == 0 || site.type == 1 {
             return TVBoxAPIService(site: site)
         }
