@@ -55,5 +55,33 @@
       "signedUrl": "https://fixture.invalid/video.m3u8",
       "expires_at": 4102444800
     }
+  },
+  "share_access_token": {
+    "data": {
+      "access_token": "fixture-share-token"
+    }
+  },
+  "share_files": {
+    "data": {
+      "list": [
+        {"fileId": "s1", "fileName": "Dir", "resType": 2, "extra_share_field": true},
+        {"id": "s2", "name": "Movie.mp4", "fileType": 1, "size": 1024}
+      ]
+    }
+  },
+  "restore": {
+    "data": {
+      "taskId": "fixture-task"
+    }
+  },
+  "task_pending": {
+    "data": {
+      "status": "pending"
+    }
+  },
+  "task_success": {
+    "data": {
+      "status": "success"
+    }
   }
 }

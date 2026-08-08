@@ -143,6 +143,26 @@ def download_url(response: dict[str, Any]) -> str:
     return first_string(*(data.get(key) for key in keys), *(response.get(key) for key in keys))
 
 
+def share_access_token(response: dict[str, Any]) -> str:
+    data = payload(response)
+    return first_string(data.get("accessToken"), data.get("access_token"), response.get("accessToken"), response.get("access_token"))
+
+
+def file_list(response: dict[str, Any]) -> list[dict[str, Any]]:
+    data = payload(response)
+    return [item for item in (data.get("list") or []) if isinstance(item, dict)]
+
+
+def task_status(response: dict[str, Any]) -> str:
+    data = payload(response)
+    return first_string(data.get("status"), response.get("status"))
+
+
+def restore_task(response: dict[str, Any]) -> str:
+    data = payload(response)
+    return first_string(data.get("taskId"), data.get("task_id"), response.get("taskId"), response.get("task_id"))
+
+
 def post_json(url: str, body: dict[str, Any]) -> dict[str, Any]:
     request = urllib.request.Request(
         url,
@@ -176,6 +196,13 @@ def self_test(path: Path) -> None:
     assert profiled["picture"] == "https://fixture.invalid/avatar.png"
     assert profiled["profile_unknown"]["keep"] == "yes"
     assert download_url(fixtures["download"]) == "https://fixture.invalid/video.m3u8"
+    assert share_access_token(fixtures["share_access_token"]) == "fixture-share-token"
+    files = file_list(fixtures["share_files"])
+    assert [f.get("fileId") or f.get("id") for f in files] == ["s1", "s2"]
+    assert files[0].get("resType") == 2 and files[0].get("extra_share_field") is True
+    assert restore_task(fixtures["restore"]) == "fixture-task"
+    assert task_status(fixtures["task_pending"]) == "pending"
+    assert task_status(fixtures["task_success"]) == "success"
     assert poll_body("device") == {
         "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
         "device_code": "device",
