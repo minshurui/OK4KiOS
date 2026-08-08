@@ -34,28 +34,32 @@ final class BaiduDriveAdapterTests: XCTestCase {
         return (BaiduDriveServiceAdapter(session: session, auth: auth, threadStore: FishThreadStore(defaults: UserDefaults(suiteName: "test.baidu.threads")!)), client)
     }
 
-    func testBeginLoginThrowsProtocolPending() async throws {
-        let (adapter, _) = makeAdapter(responses: [], store: MemoryCredentialStore())
-        do {
-            _ = try await adapter.beginLogin()
-            XCTFail("beginLogin 必须诚实抛错")
-        } catch FishDriveError.protocolPending(let reason) {
-            XCTAssertTrue(reason.contains("百度"))
-        }
+    func testBeginLoginCreatesQRCode() async throws {
+        let qr = Data(#"{"errno":0,"data":{"img":"data:image/png;base64,x","sign":"abc123"}}"#.utf8)
+        let (adapter, _) = makeAdapter(responses: [(200, qr)], store: MemoryCredentialStore())
+        let session = try await adapter.beginLogin()
+        XCTAssertEqual(session.deviceCode, "abc123")
+        XCTAssertFalse(session.qrPayload.isEmpty)
     }
 
-    func testPollThrowsProtocolPending() async throws {
-        let (adapter, _) = makeAdapter(responses: [], store: MemoryCredentialStore())
-        let session = FishScanSession(qrPayload: "x", deviceCode: "d", expiresIn: 1, interval: 1, openURL: nil)
-        do {
-            _ = try await adapter.poll(session)
-            XCTFail("poll 必须诚实抛错")
-        } catch FishDriveError.protocolPending { }
+    func testPollPendingThenAuthorized() async throws {
+        let store = MemoryCredentialStore()
+        let qr = Data(#"{"errno":0,"data":{"img":"x","sign":"abc123"}}"#.utf8)
+        let pending = Data(#"{"errno":0,"data":{"status":0}}"#.utf8)
+        let confirmed = Data(#"{"errno":0,"data":{"status":2}}"#.utf8)
+        let profile = Data(#"{"errno":0,"username":"testuser"}"#.utf8)
+        let (adapter, _) = makeAdapter(responses: [(200, qr), (200, pending), (200, confirmed), (200, profile)], store: store)
+        let session = try await adapter.beginLogin()
+        let first = try await adapter.poll(session)
+        XCTAssertEqual(first, .pending)
+        let second = try await adapter.poll(session)
+        XCTAssertEqual(second, .authorized)
+        XCTAssertNotNil(try store.data(for: "baidu"))
     }
 
     func testManualCookieLoginPersistsCredential() async throws {
         let store = MemoryCredentialStore()
-        let profile = Data(#"{"username":"testuser","avatar":"http://avatar","vip_level":"1","unknown":{"keep":1}}"#.utf8)
+        let profile = Data(#"{"errno":0,"username":"testuser","avatar":"http://avatar","vip_level":"1","unknown":{"keep":1}}"#.utf8)
         let (adapter, client) = makeAdapter(responses: [(200, profile)], store: store)
 
         try await adapter.loginWithCookie("BDUSS=abc123; PANWAP=def456")
@@ -64,7 +68,7 @@ final class BaiduDriveAdapterTests: XCTestCase {
         let credential = try BaiduCredential(responseData: saved)
         XCTAssertEqual(credential.username, "testuser")
         XCTAssertEqual(credential.cookies["BDUSS"], "abc123")
-        XCTAssertEqual(client.requests[0].url?.absoluteString, "https://pan.baidu.com/api/getuserinfo")
+        XCTAssertEqual(client.requests[0].url?.absoluteString, "https://pan.baidu.com/api/user/getinfo")
         let sentCookie = client.requests[0].value(forHTTPHeaderField: "Cookie") ?? ""
         XCTAssertTrue(sentCookie.contains("BDUSS=abc123") && sentCookie.contains("PANWAP=def456"))
     }
@@ -78,7 +82,7 @@ final class BaiduDriveAdapterTests: XCTestCase {
 
     func testStatusLoggedInWithValidCookie() async throws {
         let store = MemoryCredentialStore()
-        let profile = Data(#"{"username":"testuser"}"#.utf8)
+        let profile = Data(#"{"errno":0,"username":"testuser"}"#.utf8)
         // loginWithCookie 用 1 个 profile，status 再请求 1 个
         let (adapter, _) = makeAdapter(responses: [(200, profile), (200, profile)], store: store)
 
@@ -90,7 +94,7 @@ final class BaiduDriveAdapterTests: XCTestCase {
 
     func testLogoutRemovesCredential() async throws {
         let store = MemoryCredentialStore()
-        let profile = Data(#"{"username":"testuser"}"#.utf8)
+        let profile = Data(#"{"errno":0,"username":"testuser"}"#.utf8)
         let (adapter, _) = makeAdapter(responses: [(200, profile)], store: store)
 
         try await adapter.loginWithCookie("BDUSS=abc123")
@@ -101,7 +105,7 @@ final class BaiduDriveAdapterTests: XCTestCase {
 
     func testRefreshWithValidCookie() async throws {
         let store = MemoryCredentialStore()
-        let profile = Data(#"{"username":"testuser"}"#.utf8)
+        let profile = Data(#"{"errno":0,"username":"testuser"}"#.utf8)
         // loginWithCookie + refresh(profile) + status(profile) 共 3 个请求
         let (adapter, _) = makeAdapter(responses: [(200, profile), (200, profile), (200, profile)], store: store)
 
@@ -124,8 +128,7 @@ final class BaiduDriveAdapterTests: XCTestCase {
 final class BaiduRegistryTests: XCTestCase {
     func testBaiduRoutesToAdapter() {
         let service = FishDriveRegistry.service(for: "baidu")
-        XCTAssertFalse(service.supportsScanLogin)
+        XCTAssertTrue(service.supportsScanLogin)
         XCTAssertEqual(service.displayName, "百度网盘")
-        XCTAssertTrue(service.protocolEvidence.contains("部分取证"))
     }
 }

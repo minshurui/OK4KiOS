@@ -11,27 +11,26 @@ final class XunleiDriveAdapterTests: XCTestCase {
         return (XunleiDriveServiceAdapter(session: session, auth: auth, threadStore: FishThreadStore(defaults: UserDefaults(suiteName: "test.xunlei.threads")!)), client)
     }
 
-    func testBeginLoginThrowsProtocolPending() async throws {
+    func testBeginLoginCreatesDeviceCodeSession() async throws {
         let store = MemoryCredentialStore()
-        let (adapter, _) = makeAdapter(responses: [], store: store)
-        do {
-            _ = try await adapter.beginLogin()
-            XCTFail("beginLogin 必须诚实抛错")
-        } catch FishDriveError.protocolPending(let reason) {
-            XCTAssertTrue(reason.contains("迅雷"))
-        }
+        let device = Data(#"{"device_code":"dc1","user_code":"u1","verification_uri_complete":"https://pan.xunlei.com/scan","interval":3,"expires_in":300}"#.utf8)
+        let (adapter, _) = makeAdapter(responses: [(200, device)], store: store)
+        let session = try await adapter.beginLogin()
+        XCTAssertTrue(session.deviceCode.contains("dc1"))
     }
 
-    func testPollThrowsProtocolPending() async throws {
+    func testPollPendingThenAuthorized() async throws {
         let store = MemoryCredentialStore()
-        let (adapter, _) = makeAdapter(responses: [], store: store)
-        let session = FishScanSession(qrPayload: "x", deviceCode: "d", expiresIn: 1, interval: 1, openURL: nil)
-        do {
-            _ = try await adapter.poll(session)
-            XCTFail("poll 必须诚实抛错")
-        } catch FishDriveError.protocolPending(let reason) {
-            XCTAssertTrue(reason.contains("迅雷"))
-        }
+        let device = Data(#"{"device_code":"dc1","user_code":"u1","verification_uri_complete":"https://pan.xunlei.com/scan","interval":3,"expires_in":300}"#.utf8)
+        let pending = Data(#"{"error":"authorization_pending"}"#.utf8)
+        let authorized = Data(#"{"access_token":"a","refresh_token":"r","token_type":"Bearer"}"#.utf8)
+        let (adapter, _) = makeAdapter(responses: [(200, device), (200, pending), (200, authorized)], store: store)
+        let session = try await adapter.beginLogin()
+        let first = try await adapter.poll(session)
+        XCTAssertEqual(first, .pending)
+        let second = try await adapter.poll(session)
+        XCTAssertEqual(second, .authorized)
+        XCTAssertNotNil(try store.data(for: "xunlei"))
     }
 
     func testRefreshWithoutCredentialThrowsNotLoggedIn() async throws {
@@ -62,8 +61,7 @@ final class XunleiDriveAdapterTests: XCTestCase {
         let service = FishDriveRegistry.service(for: "xunlei")
         XCTAssertEqual(service.driveKey, "xunlei")
         XCTAssertEqual(service.displayName, "迅雷网盘")
-        XCTAssertFalse(service.supportsScanLogin)
-        XCTAssertTrue(service.protocolEvidence.contains("端点已取证"))
+        XCTAssertTrue(service.supportsScanLogin)
     }
 }
 

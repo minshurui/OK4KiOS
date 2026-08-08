@@ -36,28 +36,23 @@ final class TianyiDriveServiceTests: XCTestCase {
         XCTAssertTrue(service is TianyiDriveServiceAdapter)
         XCTAssertEqual(service.driveKey, "tianyi")
         XCTAssertEqual(service.displayName, "天翼云盘")
-        XCTAssertFalse(service.supportsScanLogin)
+        XCTAssertTrue(service.supportsScanLogin)
     }
 
-    func testBeginLoginThrowsProtocolPending() async throws {
-        let store = MemoryCredentialStore()
-        let (adapter, _) = makeAdapter(responses: [], store: store)
-        do {
-            _ = try await adapter.beginLogin()
-            XCTFail("beginLogin 必须诚实抛错")
-        } catch FishDriveError.protocolPending(let reason) {
-            XCTAssertTrue(reason.contains("天翼云盘"))
-        }
+    func testBeginLoginCreatesQRCode() async throws {
+        let qr = Data(#"{"result":0,"qrCode":"tianyi-qr","sessionKey":"sk1","shortToken":"st1"}"#.utf8)
+        let (adapter, _) = makeAdapter(responses: [(200, qr)], store: MemoryCredentialStore())
+        let session = try await adapter.beginLogin()
+        XCTAssertTrue(session.qrPayload.contains("tianyi-qr"))
     }
 
-    func testPollThrowsProtocolPending() async throws {
-        let store = MemoryCredentialStore()
-        let (adapter, _) = makeAdapter(responses: [], store: store)
-        let session = FishScanSession(qrPayload: "x", deviceCode: "d", expiresIn: 1, interval: 1, openURL: nil)
-        do {
-            _ = try await adapter.poll(session)
-            XCTFail("poll 必须诚实抛错")
-        } catch FishDriveError.protocolPending { }
+    func testPollPending() async throws {
+        let qr = Data(#"{"result":0,"qrCode":"tianyi-qr","sessionKey":"sk1","shortToken":"st1"}"#.utf8)
+        let pending = Data(#"{"result":100}"#.utf8)
+        let (adapter, _) = makeAdapter(responses: [(200, qr), (200, pending)], store: MemoryCredentialStore())
+        let session = try await adapter.beginLogin()
+        let first = try await adapter.poll(session)
+        XCTAssertEqual(first, .pending)
     }
 
     func testStatusNotLoggedIn() async throws {
