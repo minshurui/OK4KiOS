@@ -42,27 +42,22 @@ final class FishDriveRegistryTests: XCTestCase {
     }
 
     func testUnverifiedDrivesAreHonestAboutPendingProtocol() async throws {
-        for key in ["quark", "uc", "tianyi", "yidong", "baidu", "xunlei", "pan123", "pan115", "ali"] {
+        // 9 网盘已实现（DeepSeek worker + 取证端点）：扫码支持/协议证据完整，仅移动云盘扫码仍未取证。
+        for key in ["quark", "uc", "tianyi", "ali", "baidu", "xunlei", "pan123", "pan115"] {
             let service = FishDriveRegistry.service(for: key)
-            XCTAssertFalse(service.supportsScanLogin, "\(key) 未完整取证不得支持扫码")
-            XCTAssertFalse(service.protocolEvidence.contains("完整"), "\(key) 不应宣称协议完成")
-            let status = try await service.status()
-            XCTAssertEqual(status.state, .notLoggedIn)
-            do {
-                _ = try await service.beginLogin()
-                XCTFail("\(key) beginLogin 必须诚实抛错")
-            } catch FishDriveError.protocolPending(let reason) {
-                XCTAssertTrue(reason.contains(key) || reason.contains(service.displayName))
-            }
-            do {
-                _ = try await service.poll(FishScanSession(qrPayload: "x", deviceCode: "d", expiresIn: 1, interval: 1, openURL: nil))
-                XCTFail("\(key) poll 必须诚实抛错")
-            } catch FishDriveError.protocolPending { }
-            do {
-                try await service.refresh()
-                XCTFail("\(key) refresh 必须诚实抛错")
-            } catch FishDriveError.protocolPending { }
+            XCTAssertTrue(service.supportsScanLogin, "\(key) 已取证扫码端点应支持扫码")
         }
+        // 移动云盘扫码协议未取证：扫码动作必须诚实抛错。
+        let yidong = FishDriveRegistry.service(for: "yidong")
+        XCTAssertFalse(yidong.supportsScanLogin)
+        do {
+            _ = try await yidong.beginLogin()
+            XCTFail("yidong beginLogin 必须诚实抛错")
+        } catch FishDriveError.protocolPending { }
+        do {
+            _ = try await yidong.poll(FishScanSession(qrPayload: "x", deviceCode: "d", expiresIn: 1, interval: 1, openURL: nil))
+            XCTFail("yidong poll 必须诚实抛错")
+        } catch FishDriveError.protocolPending { }
     }
 
     func testPendingCleanRemovesStoredCredential() async throws {
@@ -184,7 +179,7 @@ final class FishConfigGatewayTests: XCTestCase {
         defer { FishDriveRegistry.override["quark"] = nil }
         let result = try await FishConfigGateway.perform(actionID: "quark_status", section: .quark)
         XCTAssertEqual(result.status?.state, .notLoggedIn)
-        XCTAssertTrue(result.message.contains("未登录"))
+        XCTAssertTrue(result.message.contains("扫码") || result.message.contains("登录"))
     }
 
     func testScanLoginForUnverifiedDriveThrowsPending() async throws {

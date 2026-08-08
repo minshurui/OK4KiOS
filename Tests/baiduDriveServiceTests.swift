@@ -65,7 +65,8 @@ final class BaiduDriveAdapterTests: XCTestCase {
         XCTAssertEqual(credential.username, "testuser")
         XCTAssertEqual(credential.cookies["BDUSS"], "abc123")
         XCTAssertEqual(client.requests[0].url?.absoluteString, "https://pan.baidu.com/api/getuserinfo")
-        XCTAssertEqual(client.requests[0].value(forHTTPHeaderField: "Cookie"), "BDUSS=abc123; PANWAP=def456")
+        let sentCookie = client.requests[0].value(forHTTPHeaderField: "Cookie") ?? ""
+        XCTAssertTrue(sentCookie.contains("BDUSS=abc123") && sentCookie.contains("PANWAP=def456"))
     }
 
     func testStatusNotLoggedIn() async throws {

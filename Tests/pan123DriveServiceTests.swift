@@ -71,9 +71,10 @@ final class Pan123DriveAdapterTests: XCTestCase {
         try store.set(initial, for: "pan123")
         let refreshed = Data(#"{"access_token":"new","refresh_token":"r2","token_type":"Bearer"}"#.utf8)
         let profile = Data(#"{"data":{"nickname":"User"}}"#.utf8)
-        let (adapter, client) = makeAdapter(responses: [(200, refreshed), (200, profile)], store: store)
+        // validatedCredential：先 profile（失败）→ refresh → 再 profile
+        let (adapter, client) = makeAdapter(responses: [(400, Data()), (200, refreshed), (200, profile)], store: store)
         try await adapter.refresh()
-        XCTAssertEqual(client.requests[0].url?.absoluteString, "https://oauth.litepan.top/api/oauth/refresh")
+        XCTAssertEqual(client.requests[1].url?.absoluteString, "https://oauth.litepan.top/api/oauth/refresh")
         let saved = try XCTUnwrap(try store.data(for: "pan123"))
         let credential = try Pan123Credential(responseData: saved)
         XCTAssertEqual(credential.accessToken, "new")

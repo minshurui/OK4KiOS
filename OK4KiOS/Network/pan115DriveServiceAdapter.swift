@@ -39,7 +39,7 @@ struct Pan115DriveServiceAdapter: FishDriveService {
         let qr = try await auth.begin()
         return FishScanSession(
             qrPayload: qr.qrCode,
-            deviceCode: qr.uid,
+            deviceCode: "\(qr.uid)|\(qr.time)|\(qr.sign)",
             expiresIn: TimeInterval(qr.time),
             interval: 3,
             openURL: URL(string: qr.qrCode)
@@ -47,8 +47,14 @@ struct Pan115DriveServiceAdapter: FishDriveService {
     }
 
     func poll(_ session: FishScanSession) async throws -> FishScanResult {
-        let qr = try await auth.begin()
-        switch try await auth.poll(uid: session.deviceCode, time: qr.time, sign: qr.sign) {
+        let parts = session.deviceCode.split(separator: "|")
+        guard parts.count == 3,
+              let uid = parts.first,
+              let time = Int(parts[1]),
+              let sign = parts.last else {
+            throw Pan115AuthError.invalidResponse
+        }
+        switch try await auth.poll(uid: String(uid), time: time, sign: String(sign)) {
         case .pending:
             return .pending
         case .authorized(let credential):

@@ -34,15 +34,13 @@ final class XunleiDriveAdapterTests: XCTestCase {
         }
     }
 
-    func testRefreshThrowsProtocolPending() async throws {
+    func testRefreshWithoutCredentialThrowsNotLoggedIn() async throws {
         let store = MemoryCredentialStore()
         let (adapter, _) = makeAdapter(responses: [], store: store)
         do {
             try await adapter.refresh()
-            XCTFail("refresh 必须诚实抛错")
-        } catch FishDriveError.protocolPending(let reason) {
-            XCTAssertTrue(reason.contains("迅雷"))
-        }
+            XCTFail("无凭据 refresh 必须抛 notLoggedIn")
+        } catch FishDriveError.notLoggedIn { }
     }
 
     func testStatusNotLoggedIn() async throws {
