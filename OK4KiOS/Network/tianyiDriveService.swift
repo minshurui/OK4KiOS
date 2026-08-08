@@ -179,7 +179,6 @@ struct TianyiAuthService {
     private let channelId = "web_cloud.189.cn"
     private let clientType = "TELEPC"
     private let version = "6.2"
-    private let session: URLSession
 
     private let client: TianyiHTTPClientProtocol
     init(client: TianyiHTTPClientProtocol = TianyiHTTPClient()) {
