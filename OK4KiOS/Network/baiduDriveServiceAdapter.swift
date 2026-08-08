@@ -54,7 +54,7 @@ struct BaiduDriveServiceAdapter: FishDriveService {
         case .expired:
             throw BaiduAuthError.qrExpired
         case .unknown(let code):
-            throw BaiduAuthError.server("百度扫码未知状态: \(code)")
+            throw BaiduAuthError.networkError("百度扫码未知状态: \(code)")
         }
     }
 

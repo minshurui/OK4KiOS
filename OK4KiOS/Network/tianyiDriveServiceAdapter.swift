@@ -92,24 +92,15 @@ struct TianyiDriveServiceAdapter: FishDriveService {
             
             let data = try JSONSerialization.data(withJSONObject: credentialData)
             let credential = try TianyiCredential(responseData: data)
-            try session.saveCredential(credential)
-            
-            let name = credential.displayName
-            return FishScanResult(
-                success: true,
-                credential: FishCredential(
-                    driveKey: driveKey,
-                    displayName: name ?? "天翼云盘",
-                    detail: "已登录" + (name.map { " · \($0)" } ?? "")
-                )
-            )
+            _ = try await self.session.finishLogin(credential)
+            return .authorized
         } else if pollResponse.isPending {
-            return FishScanResult(success: false, pending: true, message: "等待扫码确认...")
+            return .pending
         } else if pollResponse.isExpired {
-            throw FishDriveError.protocolPending("二维码已过期，请重新扫码")
+            throw TianyiAuthError.qrCodeExpired
         } else {
             let message = pollResponse.message ?? pollResponse.errorDescription ?? "扫码失败"
-            throw FishDriveError.protocolPending("天翼扫码失败: \(message)")
+            throw TianyiAuthError.invalidResponse
         }
     }
 
