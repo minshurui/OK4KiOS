@@ -21,7 +21,8 @@ final class GuangyaDriveServiceTests: XCTestCase {
     func testShareAccessTokenFallsBackOn404WithoutAccountAuthorization() async throws {
         let client = GuangyaMockHTTPClient(responses: [(404, Data(#"{}"#.utf8)), (200, Data(#"{"data":{"access_token":"share-token"}}"#.utf8))])
         let service = GuangyaDriveService(client: client, authorizationProvider: StaticGuangyaAuthorization())
-        XCTAssertEqual(try await service.shareAccessToken(shareID: "share", code: "code"), "share-token")
+        let token = try await service.shareAccessToken(shareID: "share", code: "code")
+        XCTAssertEqual(token, "share-token")
         XCTAssertEqual(client.requests.map { $0.url!.path }, ["/userres/v1/get_share_access_token", "/nd.bizuserres.s/v1/get_share_access_token"])
         XCTAssertNil(client.requests[0].value(forHTTPHeaderField: "Authorization"))
     }
