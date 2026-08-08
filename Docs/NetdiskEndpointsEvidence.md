@@ -151,3 +151,11 @@
 - 登录**轮询与保存字段细节**仍需 smali 方法级分析（哪些响应字段持久化、轮询间隔、成功判定）
 - 百度（g.smali 仅 242 行，C0243g 委托 W0/A 类）端点待补充
 - 下一步：方法级 smali 分析登录流程（qr→poll→save），再接入 iOS
+
+## 11. 调用点级补充（2026-08-08 decode_all_calls）
+
+- 移动登录：`/portal/loginUrl.action?redirectURL=https://cloud.189.cn/web/redirect.html&returnURL=/main.action`（yidong D 方法，云盘网页跳转登录）
+- 115 请求设备头：`adprovider/8.56.0.1134 netWorkType/WIFI appid/40 deviceName/Xiaomi_Mi 9 deviceModel/MI 9 ...`
+- 迅雷桌面 UA：`Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) uc-cloud-drive/2...`
+- 123 分享正则与夸克共享同一字符串池（quark 类 L99 命中 123 分享正则，跨类池引用）
+- 方法级映射已建立：pan115 `l`=加密登录、`c0`=转存、`B`=HTTP 请求封装、`f`=文件；tianyi `l`=登录、`j`=请求；uc `p/r/w/X/d`=请求/文件/分享/转存；yidong `D/f`=请求/登录
