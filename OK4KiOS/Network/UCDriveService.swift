@@ -120,7 +120,7 @@ struct UCDriveService: Sendable {
     let userAgent = "uc-cloud-drive/1.8.7 Chrome/100.0.4896.160 Electron/18.3.5.16-b62cf9c50d Safari/537.36 Channel/ucpan_other_ch"
     let client: HTTPClient
 
-    init(client: HTTPClient = URLSessionHTTPClient(session: .shared)) {
+    init(client: HTTPClient = URLSessionHTTPClient()) {
         self.client = client
     }
 
