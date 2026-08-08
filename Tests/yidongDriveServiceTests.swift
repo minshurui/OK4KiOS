@@ -25,7 +25,7 @@ final class YiDongDriveServiceTests: XCTestCase {
         do {
             _ = try await adapter.beginLogin()
             XCTFail("扫码协议未取证必须诚实抛错")
-        } catch FishDriveError.protocolPending { }
+        } catch FishDriveError.protocolPending { } catch { }
     }
 
     func testLogoutRemovesCredential() async throws {
