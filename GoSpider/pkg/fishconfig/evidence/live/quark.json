@@ -1,0 +1,1 @@
+{"netdisk":"quark","target":"https://uop.quark.cn/cas/ajax/getTokenForQrcodeLogin","method":"GET","status":200,"response":"{\"status\":2000000,\"message\":\"ok\",\"data\":{\"members\":{\"token\":\"sta306333ffe1912bzs39rtkxf49e9ei\"}}}","reachability":"reachable","note":"扫码第一步（CAS token）；实测可达"}

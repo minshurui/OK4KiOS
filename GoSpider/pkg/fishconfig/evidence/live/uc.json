@@ -1,0 +1,1 @@
+{"netdisk":"uc","target":"https://api.open.uc.cn/cas/ajax/getTokenForQrcodeLogin?__dt=641254\u0026__t=1786160498189","method":"GET","status":200,"response":"{\"status\":2000000,\"message\":\"ok\",\"data\":{\"members\":{\"token\":\"sta3063334f2w665szouhyvknkvkgvzk\"}}}","reachability":"reachable","note":"扫码第一步（CAS token）；实测可达"}

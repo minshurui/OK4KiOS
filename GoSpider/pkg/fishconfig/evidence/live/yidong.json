@@ -1,0 +1,2 @@
+{"netdisk":"yidong","target":"https://user-njs.yun.139.com/user/getUser","method":"GET","status":200,"response":"{\"success\":false,\"code\":\"01000101\",\"message\":\"服务器响应异常\",\"data\":null}","reachability":"reachable","note":"用户端点；无凭证返回 code=01000101=可达"}
+{"netdisk":"yidong","target":"https://api.139.com/queryId","method":"GET","status":0,"reachability":"blocked","note":"Get \"https://api.139.com/queryId\": EOF (2.691s)"}

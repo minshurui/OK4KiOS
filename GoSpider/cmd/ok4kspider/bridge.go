@@ -12,11 +12,13 @@ package main
 import "C"
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"unsafe"
 
 	"ok4kspider/pkg/engine"
+	"ok4kspider/pkg/fishconfig"
 	"ok4kspider/pkg/fishguard"
 	"ok4kspider/pkg/sites/wogg"
 )
@@ -108,6 +110,37 @@ func ok4k_play(siteJSON *C.char) *C.char {
 	return cString(out)
 }
 
+// ok4k_action is the csp_FishConfig settings-center gateway: Swift passes
+// siteJSON {"api":"csp_FishConfig","params":{"action":"quark_status","payload":"..."}}
+// and receives an ActionResponse JSON envelope (see pkg/fishconfig/API contract).
+//
+//export ok4k_action
+func ok4k_action(siteJSON *C.char) *C.char {
+	var req fishconfig.GatewayRequest
+	if err := json.Unmarshal([]byte(C.GoString(siteJSON)), &req); err != nil {
+		return cString(`{"ok":false,"kind":"error","error":"bad request: ` + err.Error() + `"}`)
+	}
+	if req.API != "" && req.API != "csp_FishConfig" {
+		return cString(`{"ok":false,"kind":"error","error":"not a FishConfig action gateway call"}`)
+	}
+	action := req.Params["action"]
+	payload := req.Params["payload"]
+	gw := fishconfig.NewGateway()
+	out, err := gw.Handle(background(), action, payload)
+	if err != nil {
+		return cString(`{"ok":false,"kind":"error","error":` + jsonString(err.Error()) + `}`)
+	}
+	return cString(string(out))
+}
+
+// ok4k_fishconfig_actions returns the full action catalog grouped by netdisk.
+//
+//export ok4k_fishconfig_actions
+func ok4k_fishconfig_actions() *C.char {
+	b, _ := json.Marshal(fishconfig.ActionsCatalog())
+	return cString(string(b))
+}
+
 //export ok4k_ext_decrypt
 func ok4k_ext_decrypt(encoded *C.char) *C.char {
 	plain, err := fishguard.DecryptExt(C.GoString(encoded))
@@ -156,3 +189,11 @@ func run(fn func(req *SiteRequest) (any, error), siteJSON *C.char) string {
 }
 
 func main() {}
+
+// helpers for ok4k_action
+func background() context.Context { return context.Background() }
+
+func jsonString(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
+}

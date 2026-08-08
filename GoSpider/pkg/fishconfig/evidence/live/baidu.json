@@ -1,0 +1,1 @@
+{"netdisk":"baidu","target":"https://pan.baidu.com/api/user/getinfo","method":"GET","status":400,"response":"{\"errmsg\":\"params error\",\"errno\":2,\"newno\":\"\",\"request_id\":478847476248597156,\"server_time\":1786160515}","reachability":"endpoint_shape_ok","note":"用户端点；无凭证 errno!=0=可达"}

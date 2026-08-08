@@ -1,0 +1,1 @@
+{"netdisk":"tianyi","target":"https://api.cloud.189.cn/open/user/getQrCode.action?appId=8027001086180899\u0026clientType=TELEPC\u0026version=6.2\u0026channelId=web_cloud.189.cn","method":"GET","status":400,"response":"{\"errorCode\":\"InvalidArgument\",\"errorMsg\":\"date/signature is null\",\"success\":null}","reachability":"endpoint_shape_ok","note":"扫码 getQrCode；需要会话参数"}
