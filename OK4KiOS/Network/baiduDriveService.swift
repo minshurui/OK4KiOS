@@ -197,7 +197,13 @@ protocol BaiduHTTPClientProtocol {
 
 struct BaiduHTTPClient: BaiduHTTPClientProtocol {
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        let result: (Data, URLResponse) = try await URLSession.shared.data(for: request)
+        let result: (Data, URLResponse) = try await withCheckedThrowingContinuation { continuation in
+            URLSession.shared.dataTask(with: request) { data, response, error in
+                if let error { continuation.resume(throwing: error) }
+                else if let data, let response { continuation.resume(returning: (data, response)) }
+                else { continuation.resume(throwing: URLError(.badServerResponse)) }
+            }.resume()
+        }
         guard let http = result.1 as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         return (result.0, http)
     }

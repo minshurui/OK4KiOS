@@ -159,11 +159,17 @@ protocol TianyiHTTPClientProtocol {
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse)
 }
 
-extension URLSession: TianyiHTTPClientProtocol {
+struct TianyiHTTPClient: TianyiHTTPClientProtocol {
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        let (data, response) = try await self.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-        return (data, http)
+        let result: (Data, URLResponse) = try await withCheckedThrowingContinuation { continuation in
+            URLSession.shared.dataTask(with: request) { data, response, error in
+                if let error { continuation.resume(throwing: error) }
+                else if let data, let response { continuation.resume(returning: (data, response)) }
+                else { continuation.resume(throwing: URLError(.badServerResponse)) }
+            }.resume()
+        }
+        guard let http = result.1 as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        return (result.0, http)
     }
 }
 
@@ -176,7 +182,7 @@ struct TianyiAuthService {
     private let session: URLSession
 
     private let client: TianyiHTTPClientProtocol
-    init(client: TianyiHTTPClientProtocol = URLSession.shared) {
+    init(client: TianyiHTTPClientProtocol = TianyiHTTPClient()) {
         self.client = client
     }
 

@@ -105,18 +105,24 @@ protocol XunleiHTTPClientProtocol {
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse)
 }
 
-extension URLSession: XunleiHTTPClientProtocol {
+struct XunleiHTTPClient: XunleiHTTPClientProtocol {
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        let (data, response) = try await self.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-        return (data, http)
+        let result: (Data, URLResponse) = try await withCheckedThrowingContinuation { continuation in
+            URLSession.shared.dataTask(with: request) { data, response, error in
+                if let error { continuation.resume(throwing: error) }
+                else if let data, let response { continuation.resume(returning: (data, response)) }
+                else { continuation.resume(throwing: URLError(.badServerResponse)) }
+            }.resume()
+        }
+        guard let http = result.1 as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        return (result.0, http)
     }
 }
 
 struct XunleiAuthService {
     var baseURL = URL(string: "https://xluser-ssl.xunlei.com/v1")!
     var clientID = "d16d8f6b-e0c8-48f0-87c4-4f43a34d37c0"
-    var client: XunleiHTTPClientProtocol = URLSession.shared
+    var client: XunleiHTTPClientProtocol = XunleiHTTPClient()
 
     // MARK: 创建扫码登录
     func createQrcodeLogin() async throws -> XunleiDeviceCodeResponse {

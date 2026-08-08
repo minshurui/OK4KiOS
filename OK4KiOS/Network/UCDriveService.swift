@@ -102,9 +102,14 @@ protocol HTTPClient: Sendable {
 }
 
 struct URLSessionHTTPClient: HTTPClient {
-    let session: URLSession
     func data(for request: URLRequest) async throws -> (Data, URLResponse) {
-        try await session.data(for: request)
+        try await withCheckedThrowingContinuation { continuation in
+            URLSession.shared.dataTask(with: request) { data, response, error in
+                if let error { continuation.resume(throwing: error) }
+                else if let data, let response { continuation.resume(returning: (data, response)) }
+                else { continuation.resume(throwing: URLError(.badServerResponse)) }
+            }.resume()
+        }
     }
 }
 
