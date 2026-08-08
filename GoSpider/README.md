@@ -52,6 +52,8 @@ gcc bridge_test.c /tmp/libok4kspider.a -lpthread -lm
 | `ok4k_detail(siteJSON)` | 详情（params.id）→ 线路+播放列表 |
 | `ok4k_play(siteJSON)` | 播放（params.flag/id）→ 可播放 URL |
 | `ok4k_js_sign(script,url,paramsJSON)` | 执行 JS 签名脚本 |
+| `ok4k_action(siteJSON)` | **csp_FishConfig 设置中心网关**（params.action + payload，见 API.md） |
+| `ok4k_fishconfig_actions()` | FishConfig action 目录（按网盘分组） |
 | `ok4k_free(p)` | 释放 C 字符串 |
 
 `siteJSON` 格式：
@@ -68,6 +70,7 @@ gcc bridge_test.c /tmp/libok4kspider.a -lpthread -lm
 ## 状态
 
 - [x] 规则引擎（XPath 子集/JSONPath/模板/goja）
+- [x] **FishConfig 设置中心网关**（`pkg/fishconfig`，9+1 网盘 status/scan/login/thread/clean，API.md 文档）
 - [x] Wogg 真实站点提取（120 条唯一）
 - [x] C 桥接冒烟（Linux）
 - [x] iOS c-archive 构建流程（GitHub Actions macOS）

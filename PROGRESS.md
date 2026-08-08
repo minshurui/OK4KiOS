@@ -1,17 +1,17 @@
-# worker-B（Swift 设置中心）进度 — 分支 worker-swift
+# PROGRESS — worker-A (GoSpider 网关) / 分支 worker-gospider
 
-## 任务
-FishConfig 设置中心：SiteModels 特判确认 + 10 网盘栏目 UI + 扫码登录（创建/轮询/刷新/退出）+ 状态/线程/清理 + 数据层网关接入。
-网关接口：/root/tv-ios-w1/GoSpider/API.md 未生成 → 按 PROTOCOL.md 直接实现本地调用，接口后续对齐（Go 符号 ok4k_fishconfig 动态探测，存在即切 Go）。
-
-## 日志（追加式）
-- [M1] 确认 SiteModels.swift:57-60：isFeatureCenter(:57-58) 特判 FishConfig；canRunNatively(:60) 对 type3 需 nativeBaseURLs 非空 → FishConfig=false（功能中心不应作为 VOD 执行，正确）；VodServiceFactory 补硬防护：FishConfig 永不构造点播服务
-- [M2] FishConfigModels 增补：FishConfigSection.driveKey/isDriveSection（10 网盘）、FishConfigAction.kind（status/scanLogin/thread/clean/other）分派
-- [M3] 数据层：FishDriveService 协议（status/beginLogin/poll/refresh/logout/thread）+ FishScanSession/FishDriveStatus/FishDriveError + FishThreadStore(UserDefaults)
-- [M4] 数据层：GuangyaDriveServiceAdapter（完整生命周期：device code 创建→3s 轮询→refresh_token 刷新→Keychain 退出，复用 GuangyaAuthService/Session）
-- [M5] 数据层：PendingFishDriveService（9 网盘协议取证未完成，登录抛 protocolPending 不伪装；clean/status 诚实实现）+ FishDriveRegistry
-- [M6] 数据层：FishConfigGateway（本地优先；GoSpiderBridge.supportsFishConfig 存在时走 ok4k_fishconfig，JSON 信封契约已注释）
-- [M7] UI：FishScanLoginView 通用扫码页（创建/轮询/超时/重试/取消）+ FishThreadPickerView 线程选择
-- [M8] UI：FishConfigSectionView 全 action 分派（login/status/thread/clean/other 诚实路由）
-- [M9] 测试：Tests/FishDriveServiceTests.swift（registry/pending/线程/网关/适配器）
-- [M10] 收尾：swift:5.9 docker 语法 parse + 纯 Foundation 层 typecheck 全绿（0 error）；清理临时检查脚本；提交
+- [x] 网关：csp_FishConfig action 分派（L1.a0 → Bili → FishDrive → 本地 76-case switch 忠实复刻）—— gateway.go + gateway_test.go
+- [x] 夸克 quark：status/scan/login(轮询)/thread/clean —— quark.go + 自测 + evidence
+- [x] UC uc：status/scan/token_scan/thread/clean —— uc.go + 自测 + evidence
+- [x] 天翼 tianyi：status/scan(经 login)/login(轮询/账号密码/短信/cookie)/thread/clean —— tianyi.go + 自测 + evidence
+- [x] 阿里 ali：status/scan(OAuth URL)/token(输入+刷新+授权码)/thread/clean —— ali.go + 自测 + evidence
+- [x] 百度 baidu：status/scan/login(轮询+BDUSS+cookie)/thread/clean —— baidu.go + 自测 + evidence
+- [x] 迅雷 xunlei：status/scan(设备码)/login(轮询+Token JSON)/thread/clean —— xunlei.go + 自测 + evidence
+- [x] 115 pan115：status/scan/login(轮询+cookie)/magnet_switch/clean —— pan115.go + 自测 + evidence
+- [x] 123 pan123：status/scan(litepan OAuth)/login(轮询+Token+账号密码)/community_cookie/thread/clean —— pan123.go + 自测 + evidence（litepan start 实测跑通）
+- [x] 移动 yidong：status/scan(扫码页)/login(凭证/账号密码/轮询)/clean —— yidong.go + 自测 + evidence
+- [x] 光鸭 guangya：status/scan(设备码)/login(轮询)/community_cookie/magnet_switch/clean —— guangya.go（Go 镜像 iOS 三件套协议）+ 自测 + evidence
+- [x] C 桥接：ok4k_action / ok4k_fishconfig_actions 导出（cmd/ok4kspider/bridge.go）
+- [x] 接口文档：GoSpider/API.md（请求/响应 JSON 结构 + action 全表 + Swift 接入建议）
+- [x] 实测探针：cmd/liveprobe（quark/uc/123/tianyi/115/xunlei/yidong/baidu/ali 真实端点可达性 → evidence/live/）
+- [ ] 遗留（需 smali 方法级补全）：pan115 扫码 query 参数、xunlei client_id、139 queryId 网络可达性、各网盘成功扫码真机样本
