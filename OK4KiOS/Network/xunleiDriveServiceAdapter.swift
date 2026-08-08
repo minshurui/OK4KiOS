@@ -1,16 +1,12 @@
 import Foundation
 
-/// 迅雷网盘服务适配器：把 XunleiAuthService（扫码创建 / 轮询 / refresh_token 刷新 /
-/// /user/me 资料）与 XunleiSession（Keychain 持久化）包装成统一的 FishDriveService。
-/// 完整生命周期：创建→轮询→授权保存→刷新→退出。
-/// 动态 JSON 无损保留未知字段（XunleiCredential 深合并），Keychain 只替代 Android
-/// 存储层，不改变 Android 登录交互。
-/// 扫码创建/轮询/刷新/资料端点已取证，请求体与响应字段严格按 Go 参考实现。
+/// 迅雷网盘适配器：OAuth2 device-code 扫码登录（createQrcodeLogin → pollQrcodeLogin →
+/// refresh → userInfo）。凭据经 XunleiSession（actor + store 注入）持久化。
 struct XunleiDriveServiceAdapter: FishDriveService {
     let driveKey = "xunlei"
     let displayName = "迅雷网盘"
     let supportsScanLogin = true
-    let protocolEvidence = "端点已取证：auth xluser-ssl.xunlei.com/v1/auth/token；扫码(K2(10)) / Token JSON(K2(11))；用户 /v1/user/me；文件 /drive/v1/files?parent_id=；转存 /drive/v1/share/restore；验证码 /v1/shield/captcha/init。请求体与响应字段严格按 Go 参考实现"
+    let protocolEvidence = "已取证：device/code 创建 → /auth/token 轮询（grant_type=device_code）→ refresh → /user/me（Docs/NetdiskEndpointsEvidence.md + Go 参考实现）"
     let threadOptions: [FishThreadOption] = FishThreadOption.all
 
     private let session: XunleiSession
@@ -38,10 +34,10 @@ struct XunleiDriveServiceAdapter: FishDriveService {
 
     func beginLogin() async throws -> FishScanSession {
         let authorization = try await auth.createQrcodeLogin()
-        let qrContent = authorization.verificationURIComplete?.absoluteString ?? authorization.verificationURI.absoluteString
+        let uri = authorization.verificationURIComplete?.absoluteString ?? authorization.verificationURI.absoluteString
         return FishScanSession(
-            qrPayload: qrContent,
-            deviceCode: authorization.deviceCode,
+            qrPayload: uri,
+            deviceCode: "\(authorization.deviceCode)|\(auth.clientID)",
             expiresIn: authorization.expiresIn,
             interval: max(1, authorization.interval),
             openURL: authorization.verificationURIComplete ?? authorization.verificationURI
@@ -49,40 +45,19 @@ struct XunleiDriveServiceAdapter: FishDriveService {
     }
 
     func poll(_ session: FishScanSession) async throws -> FishScanResult {
-        guard let deviceCode = session.deviceCode else {
-            throw FishDriveError.protocolPending("缺少 device_code，无法轮询")
+        let parts = session.deviceCode.split(separator: "|")
+        guard parts.count == 2, let deviceCode = parts.first, let clientID = parts.last else {
+            throw XunleiAuthError.invalidResponse
         }
-
         do {
-            let credential = try await auth.pollQrcodeLogin(deviceCode: deviceCode, clientID: auth.clientID)
-            // 获取用户信息完善资料
-            let fullCredential = try await auth.userInfo(credential: credential)
-            try await self.session.save(fullCredential)
-            let name = fullCredential.displayName
-            return FishScanResult(
-                success: true,
-                credential: FishCredential(
-                    driveKey: driveKey,
-                    accessToken: fullCredential.accessToken,
-                    refreshToken: fullCredential.refreshToken,
-                    displayName: name,
-                    raw: fullCredential.raw
-                ),
-                displayName: name
-            )
+            let credential = try await auth.pollQrcodeLogin(deviceCode: String(deviceCode), clientID: String(clientID))
+            _ = try await self.session.finishLogin(credential)
+            return .authorized
         } catch XunleiAuthError.pending {
-            return FishScanResult(success: false, pending: true, displayName: nil)
-        } catch XunleiAuthError.expired {
-            return FishScanResult(success: false, pending: false, displayName: nil, errorMessage: "扫码已过期，请重新扫码")
-        } catch XunleiAuthError.serverError(let message) {
-            return FishScanResult(success: false, pending: false, displayName: nil, errorMessage: "扫码失败：\(message)")
-        } catch {
-            return FishScanResult(success: false, pending: false, displayName: nil, errorMessage: "扫码失败，请重试")
+            return .pending
         }
     }
 
-    /// 刷新：validatedCredential 内部按 Android 顺序执行 profile 校验 → refresh_token
-    /// 刷新 → 再次 profile，并在 Keychain 持久化刷新后的凭据。
     func refresh() async throws {
         _ = try await session.validatedCredential()
     }
@@ -90,4 +65,7 @@ struct XunleiDriveServiceAdapter: FishDriveService {
     func logout() async throws {
         try await session.logout()
     }
+
+    func currentThread() -> String { threadStore.value(for: driveKey) }
+    func setThread(_ id: String) { threadStore.set(id, for: driveKey) }
 }

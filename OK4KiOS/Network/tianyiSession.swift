@@ -20,7 +20,7 @@ actor TianyiSession {
         // Android 持久化 token 后再拉取用户信息。保留可用授权即使 profile 不可用。
         try store.set(credential.raw, for: "tianyi")
         do {
-            let profiled = try await service.getUserBriefInfo(credential: credential)
+            let profiled = try await service.getUserBriefInfo(cookie: "", sessionKey: credential.sessionKey)
             try store.set(profiled.raw, for: "tianyi")
             return profiled
         } catch {
@@ -32,7 +32,7 @@ actor TianyiSession {
         guard let stored = try storedCredential() else { throw TianyiAuthError.notLoggedIn }
         // 已有 sessionKey 时尝试刷新用户信息；失败则返回已存凭据（Android 语义）
         do {
-            let profiled = try await service.getUserBriefInfo(credential: stored)
+            let profiled = try await service.getUserBriefInfo(cookie: "", sessionKey: stored.sessionKey)
             try store.set(profiled.raw, for: "tianyi")
             return profiled
         } catch {
